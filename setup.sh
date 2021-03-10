@@ -2,6 +2,10 @@
 
 export PRDIR=$HOME/.wpscripts
 
+if [ -d $PRDIR ]; then
+    rm -rf $PRDIR
+fi
+
 git clone git@github.com:locnguyenvu/wpscripts.git $PRDIR
 cd $PRDIR
 
@@ -11,6 +15,5 @@ cd bin
 
 ln -Fs "$PRDIR/zalora/oms/bin/zoms" 
 
-echo "export PATH=\$PATH:$PRDIR/bin" >> ~/.zshrc
-
-source ~/.zshrc
+echo $'\n# locnguyenvu/wpscripts commands' >> ~/.zshrc
+echo "export PATH=\$PATH:\$HOME/.wpscripts/bin" >> ~/.zshrc
