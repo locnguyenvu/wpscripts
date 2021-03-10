@@ -11,5 +11,6 @@ cd bin
 
 ln -Fs "$PRDIR/zalora/oms/bin/zoms" 
 
+echo "export PATH=\$PATH:$PRDIR/bin" >> ~/.zshrc
 
-echo "export PATH=\$PATH:$PRDIR//bin"
+source ~/.zshrc
