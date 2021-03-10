@@ -1,5 +1,7 @@
 # wpscripts
 
+My lazy scripts
+
 Setup
 ```
 $ git clone git@github.com:locnguyenvu/wpscripts.git $HOME/.wpscript

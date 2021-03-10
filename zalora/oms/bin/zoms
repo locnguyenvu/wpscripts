@@ -1,0 +1,120 @@
+#!/bin/bash
+
+if [ -L "$0" ] ; then
+    CURDIR=$(dirname $(readlink -n "$0"))
+else
+    CURDIR=$(dirname $0)
+fi
+
+ROOTDIR=$(dirname $CURDIR)
+OMSIMAGES=(baseimage nginx fpm)
+
+if [ "$1" = 'ps' ]; then
+    cd "$ROOTDIR"
+    read -a versions <<< $(echo */)
+    for version in "${versions[@]}"; do
+        IMANGETAG='oms/fpm:'"${version/\//}"
+        COUNTACTIVE=$(docker ps --filter ancestor="$IMANGETAG" --format {{.ID}} | wc -l)
+        if [ $COUNTACTIVE -eq 1 ]; then
+            echo $'  * '"${version/\//}"
+            break
+        fi
+    done
+    exit 1
+fi
+
+if [ "$1" = 'ssh' ]; then
+    cd "$ROOTDIR"
+    read -a versions <<< $(echo */)
+    for version in "${versions[@]}"; do
+        FPMIMAGEID=$(docker ps --filter ancestor='oms/fpm:'"${version/\//}" --format {{.ID}})
+        if [ -z $FPMIMAGEID ]; then
+            continue
+        else
+            docker exec -it "$FPMIMAGEID" bash
+            exit 1
+        fi
+    done
+    exit 1
+fi
+
+
+if [ "$1" = 'restart' ]; then
+    cd "$ROOTDIR"
+    read -a versions <<< $(echo */)
+    for version in "${versions[@]}"; do
+        FPMIMAGEID=$(docker ps --filter ancestor='oms/fpm:'"${version/\//}" --format {{.ID}})
+        if [ -z $FPMIMAGEID ]; then
+            continue
+        else
+            cd "$version"
+            docker-compose -p 'oms_'"$version" -f docker-compose.yml stop
+            docker-compose -p 'oms_'"$version" -f docker-compose.yml up -d
+        fi
+    done
+    exit 1
+fi
+
+if [ ${#@} -lt 2 ]; then
+    echo 'Invalid arguments'
+    exit 1
+fi
+
+# Run command in docker
+if [ $1 = 'run' ]; then
+    cd "$ROOTDIR"
+
+    OIFS="$IFS"
+    IFS='/'
+    read -a chunks <<< "$2"
+
+    EXEC_COMMAND='php oms/cli/index.php --env=dev --module='"${chunks[0]}"' --controller='"${chunks[1]}"' --action='"${chunks[2]}"
+
+    echo $EXEC_COMMAND 
+    echo $'\n'
+
+    IFS=' '
+    read -a versions <<< $(echo */)
+
+    for version in "${versions[@]}"; do
+        IMANGETAG='oms/fpm:'"${version/\//}"
+        docker ps --filter ancestor="$IMANGETAG" --format '{{.ID}}' | \
+            while read dockerid ; do docker exec "$dockerid" bash -c "$EXEC_COMMAND" ; done
+    done
+
+    IFS="$OIFS"
+    exit 1
+fi
+
+
+# Build images
+
+if [ ! -d "$ROOTDIR/$2" ]; then
+    echo $'Version not support'
+    exit 1
+fi
+
+VERSION=$2
+VERSONDIR="$ROOTDIR/$2"
+cd $VERSONDIR
+
+if [ $1 = 'build' ]; then
+    for IMAGE in ${OMSIMAGES[@]} ; do
+        IMAGEID=$(docker images "$IMAGE:$VERSION" --format {{.ID}})
+        if [ ! -z "$IMAGEID" ]; then
+            echo $'\n Remove existent container'
+            docker container ls -a --filter ancestor="$IMAGEID" --format {{.ID}} | \
+                while read line; do docker stop "$line" && docker rm "$line"; done
+        fi
+        echo $IMAGE
+        docker build -t 'oms/'"$IMAGE"':'"$VERSION" "$IMAGE"
+    done
+elif [ $1 = 'start' ]; then 
+    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
+elif [ $1 = 'stop' ]; then 
+    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml stop
+elif [ $1 = 'restart' ]; then 
+    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml restart 
+elif [ $1 = 'delete' ]; then 
+    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml down 
+fi
