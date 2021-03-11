@@ -4,8 +4,7 @@ My lazy scripts
 
 Setup
 ```
-$ git clone git@github.com:locnguyenvu/wpscripts.git $HOME/.wpscript
-$ echo "export PATH=\$PATH:\$HOME\\.wpscript\\\bin" >> ~/.zshrc
+$ curl https://raw.githubusercontent.com/locnguyenvu/wpscripts/main/setup.sh | sh
 $ source ~/.zshrc
 ```
 
