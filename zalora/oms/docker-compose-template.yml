@@ -10,13 +10,13 @@ rabbitmq:
     - "5672:5672"
     - "15672:15672"
 src:
-  image: oms/baseimage:php72
+  image: oms/baseimage:%version%
   restart: always
   volumes:
-    -  /Users/loc/workspace/zalora/oms:/var/www/oms:rw
+    -  %project_path%:/var/www/oms:rw
     - ./config/nginx.conf:/etc/nginx/sites-enabled/oms.conf
 fpm:
-  image: oms/fpm:php72
+  image: oms/fpm:%version%
   restart: always
   volumes_from:
     - src
@@ -28,7 +28,7 @@ fpm:
   ports:
     - "9000:9000"
 nginx:
-  image: oms/nginx:php72
+  image: oms/nginx:%version%
   restart: always
   volumes_from:
     - fpm

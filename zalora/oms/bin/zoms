@@ -3,7 +3,7 @@
 if [ -L "$0" ] ; then
     CURDIR=$(dirname $(readlink -n "$0"))
 else
-    CURDIR=$(dirname $0)
+    CURDIR=$(pwd)
 fi
 
 ROOTDIR=$(dirname $CURDIR)
@@ -90,7 +90,7 @@ fi
 # Build images
 
 if [ ! -d "$ROOTDIR/$2" ]; then
-    echo $'Version not support'
+    echo $'Version not support: '"$ROOTDIR/$2"
     exit 1
 fi
 
@@ -109,6 +109,28 @@ if [ $1 = 'build' ]; then
         echo $IMAGE
         docker build -t 'oms/'"$IMAGE"':'"$VERSION" "$IMAGE"
     done
+elif [ $1 = 'setup' ]; then
+    DOCKERCOMPOSEFILE="$VERSONDIR"'/docker-compose.yml'
+    cp "$ROOTDIR/docker-compose-template.yml" $DOCKERCOMPOSEFILE
+    if [ -z $OMS_PROJ_PATH ]; then
+        read -p "- oms path: " OMS_PROJ_PATH
+    fi
+    sed -i '' -e 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
+    sed -i '' -e 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
+
+    echo $'\n# Start containers...'
+    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
+
+    echo $'\n# Setup rabbitmq...'
+    RABBITMQCONTAINERID=$(docker ps --filter ancestor=rabbitmq:management --format {{.ID}})
+    docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost vn"
+    docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'vn' 'guest' '.*' '.*' '.*'"
+
+    RABBITMQADMIN="$CURDIR"'/rabbitmqadmin'
+    curl localhost:15672/cli/rabbitmqadmin >| $RABBITMQADMIN
+    chmod +x "$RABBITMQADMIN"
+    eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
+    rm -rf "$RABBITMQADMIN"
 elif [ $1 = 'start' ]; then 
     docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
 elif [ $1 = 'stop' ]; then 
@@ -118,3 +140,4 @@ elif [ $1 = 'restart' ]; then
 elif [ $1 = 'delete' ]; then 
     docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml down 
 fi
+
