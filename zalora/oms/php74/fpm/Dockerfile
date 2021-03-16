@@ -112,6 +112,12 @@ RUN curl -L https://phar.phpunit.de/phpunit-5.7.phar > /usr/local/bin/phpunit &&
 # Cleanup
 RUN rm -rf /var/lib/apt/lists/*
 
+# Configure xdebug
+RUN echo "xdebug.remote_enable=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.remote_autostart=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.remote_log=/var/www/oms/oms/data/logs/xdebug.log" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini 
+
+
 # Configuration management
 COPY config/php7/php-fpm.conf               /usr/local/etc/php-fpm.conf
 COPY config/php7/www.conf                   /usr/local/etc/php-fpm.d/www.conf

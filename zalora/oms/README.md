@@ -1,4 +1,6 @@
-# Requirements
+# Build images
+
+Requirements
 
 Download package JDK-12.0.2 and extracts following locations `php*/fpm/extions/jdk-12.0.2`
 
@@ -19,4 +21,39 @@ $ zoms run daemon/daemon-watchdog/start-daemons
 Stop oms consumers
 ```
 $ zoms run daemon/daemon-watchdog/stop-daemons
+```
+
+# Development
+
+## Debug with Vscode 
+
+Requirements:
+
+Extension: https://github.com/xdebug/vscode-php-debug
+
+Configuration `.vscode/launch.json`
+
+```
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Listen for XDebug",
+            "type": "php",
+            "request": "launch",
+            "port": 9000,
+            "pathMappings": {
+                "/var/www/oms": "${workspaceRoot}"
+            }
+        },
+        {
+            "name": "Launch currently open script",
+            "type": "php",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${fileDirname}",
+            "port": 9000
+        }
+    ]
+}
 ```

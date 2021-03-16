@@ -21,7 +21,7 @@ fpm:
   volumes_from:
     - src
   environment:
-   - XDEBUG_CONFIG="idekey=vscode remote_host=host.docker.internal remote_enable=1 remote_autostart=1"
+    - XDEBUG_CONFIG="idekey=vscode remote_host=host.docker.internal remote_enable=1 remote_autostart=1"
   links:
     - memcached:memcached
     - rabbitmq:rabbitmq

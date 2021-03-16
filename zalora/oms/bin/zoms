@@ -9,12 +9,34 @@ fi
 ROOTDIR=$(dirname $CURDIR)
 OMSIMAGES=(baseimage nginx fpm)
 
+function print_help() {
+    echo $'Usages: zoms <command>\n'
+    echo $'>Prepare docker images/containers. Valid versions `php72`, `php74`'
+    echo $'>>Commands (ex: zoms build php72)'
+    echo $' * build'
+    echo $' * start'
+    echo $' * stop'
+    echo $' * restart'
+    echo $' * delete'
+
+    echo $'\n>Others'
+    echo ' * ps'
+    echo ' * restart'
+    echo ' * run <module/controller/action>'
+
+}
+
+if [ -z $1 ]; then
+    print_help
+    exit 1
+fi
+
 if [ "$1" = 'ps' ]; then
     cd "$ROOTDIR"
     read -a versions <<< $(echo */)
     for version in "${versions[@]}"; do
-        IMANGETAG='oms/fpm:'"${version/\//}"
-        COUNTACTIVE=$(docker ps --filter ancestor="$IMANGETAG" --format {{.ID}} | wc -l)
+        IMAGETAG='oms/fpm:'"${version/\//}"
+        COUNTACTIVE=$(docker ps --filter ancestor="$IMAGETAG" --format {{.ID}} | wc -l)
         if [ $COUNTACTIVE -eq 1 ]; then
             echo $'  * '"${version/\//}"
             break
@@ -77,8 +99,8 @@ if [ $1 = 'run' ]; then
     read -a versions <<< $(echo */)
 
     for version in "${versions[@]}"; do
-        IMANGETAG='oms/fpm:'"${version/\//}"
-        docker ps --filter ancestor="$IMANGETAG" --format '{{.ID}}' | \
+        IMAGETAG='oms/fpm:'"${version/\//}"
+        docker ps --filter ancestor="$IMAGETAG" --format '{{.ID}}' | \
             while read dockerid ; do docker exec "$dockerid" bash -c "$EXEC_COMMAND" ; done
     done
 
@@ -100,15 +122,20 @@ cd $VERSONDIR
 
 if [ $1 = 'build' ]; then
     for IMAGE in ${OMSIMAGES[@]} ; do
-        IMAGEID=$(docker images "$IMAGE:$VERSION" --format {{.ID}})
-        if [ ! -z "$IMAGEID" ]; then
-            echo $'\n Remove existent container'
-            docker container ls -a --filter ancestor="$IMAGEID" --format {{.ID}} | \
-                while read line; do docker stop "$line" && docker rm "$line"; done
+        echo "* oms/$IMAGE:$VERSION..."
+        IMAGETAG="oms/$IMAGE:$VERSION"
+        CONTAINERID=$(docker container ls -a --filter ancestor="$IMAGETAG" --format {{.ID}})
+        if [ ! -z "$CONTAINERID" ]; then
+            docker container ls -a --filter ancestor="$IMAGETAG" --format {{.ID}} | \
+                while read line; do 
+                    echo "Removing container existent containers..."
+                    docker stop "$line" 
+                    docker rm "$line"
+                done
         fi
-        echo $IMAGE
-        docker build -t 'oms/'"$IMAGE"':'"$VERSION" "$IMAGE"
+        docker build -q -t 'oms/'"$IMAGE"':'"$VERSION" "$IMAGE"
     done
+
 elif [ $1 = 'setup' ]; then
     DOCKERCOMPOSEFILE="$VERSONDIR"'/docker-compose.yml'
     cp "$ROOTDIR/docker-compose-template.yml" $DOCKERCOMPOSEFILE
@@ -123,6 +150,7 @@ elif [ $1 = 'setup' ]; then
 
     echo $'\n# Setup rabbitmq...'
     RABBITMQCONTAINERID=$(docker ps --filter ancestor=rabbitmq:management --format {{.ID}})
+    docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl start_app"
     docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost vn"
     docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'vn' 'guest' '.*' '.*' '.*'"
 
@@ -131,6 +159,7 @@ elif [ $1 = 'setup' ]; then
     chmod +x "$RABBITMQADMIN"
     eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
     rm -rf "$RABBITMQADMIN"
+
 elif [ $1 = 'start' ]; then 
     docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
 elif [ $1 = 'stop' ]; then 

@@ -131,6 +131,11 @@ COPY blackfire/blackfire-php.ini            $PHP_INI_DIR/conf.d/zz-blackfire.ini
 # Cleanup
 RUN rm -rf /var/lib/apt/lists/*
 
+# Configure xdebug
+RUN echo "xdebug.remote_enable=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.remote_autostart=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
+    echo "xdebug.remote_log=/var/www/oms/oms/data/logs/xdebug.log" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini 
+
 # Share socket to nginx
 VOLUME ["/var/run", "/var/www/oms"]
 # Working dir
