@@ -39,6 +39,8 @@ if [ "$1" = 'ps' ]; then
         COUNTACTIVE=$(docker ps --filter ancestor="$IMAGETAG" --format {{.ID}} | wc -l)
         if [ $COUNTACTIVE -eq 1 ]; then
             echo $'  * '"${version/\//}"
+            cd $version
+            docker-compose -p "oms_$version" -f docker-compose.yml ps
             break
         fi
     done
@@ -136,7 +138,6 @@ if [ $1 = 'build' ]; then
         docker build -q -t 'oms/'"$IMAGE"':'"$VERSION" "$IMAGE"
     done
 
-elif [ $1 = 'setup' ]; then
     DOCKERCOMPOSEFILE="$VERSONDIR"'/docker-compose.yml'
     cp "$ROOTDIR/docker-compose-template.yml" $DOCKERCOMPOSEFILE
     if [ -z $OMS_PROJ_PATH ]; then
@@ -144,9 +145,12 @@ elif [ $1 = 'setup' ]; then
     fi
     sed -i '' -e 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
     sed -i '' -e 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
-
-    echo $'\n# Start containers...'
-    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
+elif [ $1 = 'setup' ]; then
+    CONTAINERRUNNING=$(docker-compose -p "oms_$VERSION" -f docker-compose.yml ps | grep Up | wc -l)
+    if [ $CONTAINERRUNNING -lt 5 ]; then
+        echo $'You have to start containers first `zoms start '"$VERSION"'`'
+        exit 1
+    fi
 
     echo $'\n# Setup rabbitmq...'
     RABBITMQCONTAINERID=$(docker ps --filter ancestor=rabbitmq:management --format {{.ID}})
