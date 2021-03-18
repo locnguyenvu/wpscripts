@@ -1,13 +1,14 @@
 #!/bin/bash
 
-if [ -L "$0" ] ; then
-    CURDIR=$(dirname $(readlink -n "$0"))
-else
-    CURDIR=$(pwd)
-fi
-
-ROOTDIR=$(dirname $CURDIR)
-OMSIMAGES=(baseimage nginx fpm)
+function replace_string_in_file() {
+    sedpattern=$1
+    filepath=$2
+    systemname=$(uname -s)
+    case "${systemname}" in
+        Linux*) sed -i $sedpattern $filepath;;
+        Darwin*) sed -i '' -e $sedpattern $filepath;;
+    esac
+}
 
 function print_help() {
     echo $'Usages: zoms <command>\n'
@@ -25,6 +26,15 @@ function print_help() {
     echo ' * run <module/controller/action>'
 
 }
+
+if [ -L "$0" ] ; then
+    CURDIR=$(dirname $(readlink -n "$0"))
+else
+    CURDIR=$(pwd)
+fi
+
+ROOTDIR=$(dirname $CURDIR)
+OMSIMAGES=(baseimage nginx fpm)
 
 if [ -z $1 ]; then
     print_help
@@ -62,6 +72,20 @@ if [ "$1" = 'ssh' ]; then
     exit 1
 fi
 
+if [ "$1" = 'stop' ]; then
+    cd "$ROOTDIR"
+    read -a versions <<< $(echo */)
+    for version in "${versions[@]}"; do
+        FPMIMAGEID=$(docker ps --filter ancestor='oms/fpm:'"${version/\//}" --format {{.ID}})
+        if [ -z $FPMIMAGEID ]; then
+            continue
+        else
+            cd "$version"
+            docker-compose -p 'oms_'"$version" -f docker-compose.yml stop
+        fi
+    done
+    exit 1
+fi
 
 if [ "$1" = 'restart' ]; then
     cd "$ROOTDIR"
@@ -78,6 +102,7 @@ if [ "$1" = 'restart' ]; then
     done
     exit 1
 fi
+
 
 if [ ${#@} -lt 2 ]; then
     echo 'Invalid arguments'
@@ -143,8 +168,8 @@ if [ $1 = 'build' ]; then
     if [ -z $OMS_PROJ_PATH ]; then
         read -p "- oms path: " OMS_PROJ_PATH
     fi
-    sed -i '' -e 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
-    sed -i '' -e 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
+    replace_string_in_file 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
+    replace_string_in_file 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
 elif [ $1 = 'setup' ]; then
     CONTAINERRUNNING=$(docker-compose -p "oms_$VERSION" -f docker-compose.yml ps | grep Up | wc -l)
     if [ $CONTAINERRUNNING -lt 5 ]; then

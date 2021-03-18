@@ -16,4 +16,6 @@ cd bin
 ln -Fs "$PRDIR/zalora/oms/bin/zoms" 
 
 echo $'\n# locnguyenvu/wpscripts commands' >> ~/.zshrc
-echo "export PATH=\$PATH:\$HOME/.wpscripts/bin" >> ~/.zshrc
+echo 'if [[ ! "$PATH" == *'"$PRDIR"'/bin* ]]; then 
+    export PATH=PATH="${PATH:+${PATH}:}'"$PRDIR"'/bin" 
+fi' >> ~/.zshrc
