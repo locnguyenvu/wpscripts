@@ -1,5 +1,16 @@
 #!/bin/bash
 
+if [ -L "$0" ] ; then
+    CURDIR=$(dirname $(readlink -n "$0"))
+else
+    CURDIR=$(pwd)
+fi
+
+ROOTDIR=$(dirname $CURDIR)
+OMSIMAGES=(baseimage nginx fpm)
+SUPPORTVERSIONS=( php72 php74 )
+
+
 function replace_string_in_file() {
     sedpattern=$1
     filepath=$2
@@ -11,30 +22,24 @@ function replace_string_in_file() {
 }
 
 function print_help() {
-    echo $'Usages: zoms <command>\n'
-    echo $'>Prepare docker images/containers. Valid versions `php72`, `php74`'
-    echo $'>>Commands (ex: zoms build php72)'
-    echo $' * build'
-    echo $' * start'
-    echo $' * stop'
-    echo $' * restart'
-    echo $' * delete'
-
-    echo $'\n>Others'
-    echo ' * ps'
-    echo ' * restart'
-    echo ' * run <module/controller/action>'
-
+    if [[ -L "$0" ]] ; then
+        DOCDIR=$(dirname $(dirname $0))/docs
+    else
+        DOCDIR=$CURDIR/../../../docs
+    fi
+    cat $DOCDIR/zoms.txt
 }
 
-if [ -L "$0" ] ; then
-    CURDIR=$(dirname $(readlink -n "$0"))
-else
-    CURDIR=$(pwd)
-fi
-
-ROOTDIR=$(dirname $CURDIR)
-OMSIMAGES=(baseimage nginx fpm)
+function get_active_version() {
+    for version in "${SUPPORTVERSIONS[@]}"; do
+        IMAGETAG='oms/fpm:'"${version/\//}"
+        COUNTACTIVE=$(docker ps --filter ancestor="$IMAGETAG" --format {{.ID}} | wc -l)
+        if [ $COUNTACTIVE -eq 1 ]; then
+            echo $version
+            return
+        fi
+    done
+}
 
 if [ -z $1 ]; then
     print_help
@@ -42,18 +47,13 @@ if [ -z $1 ]; then
 fi
 
 if [ "$1" = 'ps' ]; then
-    cd "$ROOTDIR"
-    read -a versions <<< $(echo */)
-    for version in "${versions[@]}"; do
-        IMAGETAG='oms/fpm:'"${version/\//}"
-        COUNTACTIVE=$(docker ps --filter ancestor="$IMAGETAG" --format {{.ID}} | wc -l)
-        if [ $COUNTACTIVE -eq 1 ]; then
-            echo $'  * '"${version/\//}"
-            cd $version
-            docker-compose -p "oms_$version" -f docker-compose.yml ps
-            break
-        fi
-    done
+    ACTIVE_VERSION=$(get_active_version)
+    if [ -z $ACTIVE_VERSION ]; then
+        echo 'Environment has not started yet'
+    else
+        echo 'Current version: '"$ACTIVE_VERSION"
+        docker-compose -f "$ROOTDIR/$ACTIVE_VERSION/docker-compose.yml" -p "oms_$ACTIVE_VERSION" ps
+    fi
     exit 1
 fi
 
@@ -73,36 +73,44 @@ if [ "$1" = 'ssh' ]; then
 fi
 
 if [ "$1" = 'stop' ]; then
-    cd "$ROOTDIR"
-    read -a versions <<< $(echo */)
-    for version in "${versions[@]}"; do
-        FPMIMAGEID=$(docker ps --filter ancestor='oms/fpm:'"${version/\//}" --format {{.ID}})
-        if [ -z $FPMIMAGEID ]; then
-            continue
-        else
-            cd "$version"
-            docker-compose -p 'oms_'"$version" -f docker-compose.yml stop
-        fi
-    done
-    exit 1
+    ACTIVE_VERSION=$(get_active_version)
+    if [ -z $ACTIVE_VERSION ]; then
+        exit 1
+    fi
+    cd "$ROOTDIR/$ACTIVE_VERSION"
+    docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml stop
 fi
 
 if [ "$1" = 'restart' ]; then
-    cd "$ROOTDIR"
-    read -a versions <<< $(echo */)
-    for version in "${versions[@]}"; do
-        FPMIMAGEID=$(docker ps --filter ancestor='oms/fpm:'"${version/\//}" --format {{.ID}})
-        if [ -z $FPMIMAGEID ]; then
-            continue
-        else
-            cd "$version"
-            docker-compose -p 'oms_'"$version" -f docker-compose.yml stop
-            docker-compose -p 'oms_'"$version" -f docker-compose.yml up -d
-        fi
-    done
-    exit 1
+    ACTIVE_VERSION=$(get_active_version)
+    if [ -z $ACTIVE_VERSION ]; then
+        exit 1
+    fi
+    cd "$ROOTDIR/$ACTIVE_VERSION"
+    docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml stop
+    docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml up -d
 fi
 
+if [ "$1" = 'setup' ]; then
+    IS_ACTIVE=$(get_active_version)
+    if [ -z $IS_ACTIVE ]; then
+        echo 'Envinronment has not start yet'
+        exit 1
+    fi
+    RABBITMQCONTAINERID=$(docker ps --filter ancestor=rabbitmq:management --format {{.ID}})
+    if [  $RABBITMQCONTAINERID ]; then
+        echo $'\n# Setup rabbitmq...'
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl start_app"
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost vn"
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'vn' 'guest' '.*' '.*' '.*'"
+    
+        RABBITMQADMIN="$CURDIR"'/rabbitmqadmin'
+        curl localhost:15672/cli/rabbitmqadmin >| $RABBITMQADMIN
+        chmod +x "$RABBITMQADMIN"
+        eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
+        rm -rf "$RABBITMQADMIN"
+    fi
+fi
 
 if [ ${#@} -lt 2 ]; then
     echo 'Invalid arguments'
@@ -170,32 +178,7 @@ if [ $1 = 'build' ]; then
     fi
     replace_string_in_file 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
     replace_string_in_file 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
-elif [ $1 = 'setup' ]; then
-    CONTAINERRUNNING=$(docker-compose -p "oms_$VERSION" -f docker-compose.yml ps | grep Up | wc -l)
-    if [ $CONTAINERRUNNING -lt 5 ]; then
-        echo $'You have to start containers first `zoms start '"$VERSION"'`'
-        exit 1
-    fi
-
-    echo $'\n# Setup rabbitmq...'
-    RABBITMQCONTAINERID=$(docker ps --filter ancestor=rabbitmq:management --format {{.ID}})
-    docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl start_app"
-    docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost vn"
-    docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'vn' 'guest' '.*' '.*' '.*'"
-
-    RABBITMQADMIN="$CURDIR"'/rabbitmqadmin'
-    curl localhost:15672/cli/rabbitmqadmin >| $RABBITMQADMIN
-    chmod +x "$RABBITMQADMIN"
-    eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
-    rm -rf "$RABBITMQADMIN"
-
 elif [ $1 = 'start' ]; then 
     docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
-elif [ $1 = 'stop' ]; then 
-    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml stop
-elif [ $1 = 'restart' ]; then 
-    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml restart 
-elif [ $1 = 'delete' ]; then 
-    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml down 
 fi
 

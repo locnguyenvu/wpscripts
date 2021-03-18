@@ -1,0 +1,32 @@
+
+Zalora OMS project
+Usage: zoms <commands> <args>
+
+Commands:
+
+    build <php-version>       
+            Prepare docker images, supported versions: php72, php74
+            Old containers & images will be deleted
+
+    start <php-version>       
+            Start docker compose, supported versions: php72, php74
+
+    ps
+            List current active environment
+
+    restart
+            Restart all oms containers
+
+    stop
+            Stop all oms containers
+
+    run <command-alias>
+            Run commands in oms applications
+            Command alias pattern `module/controller/action`
+            Ex: 
+                zoms run debug/cli/test
+            equivalent to: 
+                php oms/cli/index.php --env=dev --module=debug --controller=cli --action=test
+
+
+
