@@ -55,9 +55,8 @@ if [ "$1" = 'ps' ]; then
         docker-compose -f "$ROOTDIR/$ACTIVE_VERSION/docker-compose.yml" -p "oms_$ACTIVE_VERSION" ps
     fi
     exit 1
-fi
 
-if [ "$1" = 'ssh' ]; then
+elif [ "$1" = 'ssh' ]; then
     cd "$ROOTDIR"
     read -a versions <<< $(echo */)
     for version in "${versions[@]}"; do
@@ -70,18 +69,16 @@ if [ "$1" = 'ssh' ]; then
         fi
     done
     exit 1
-fi
 
-if [ "$1" = 'stop' ]; then
+elif [ "$1" = 'stop' ]; then
     ACTIVE_VERSION=$(get_active_version)
     if [ -z $ACTIVE_VERSION ]; then
         exit 1
     fi
     cd "$ROOTDIR/$ACTIVE_VERSION"
     docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml stop
-fi
 
-if [ "$1" = 'restart' ]; then
+elif [ "$1" = 'restart' ]; then
     ACTIVE_VERSION=$(get_active_version)
     if [ -z $ACTIVE_VERSION ]; then
         exit 1
@@ -89,9 +86,8 @@ if [ "$1" = 'restart' ]; then
     cd "$ROOTDIR/$ACTIVE_VERSION"
     docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml stop
     docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml up -d
-fi
 
-if [ "$1" = 'setup' ]; then
+elif [ "$1" = 'setup' ]; then
     IS_ACTIVE=$(get_active_version)
     if [ -z $IS_ACTIVE ]; then
         echo 'Envinronment has not start yet'
@@ -110,15 +106,12 @@ if [ "$1" = 'setup' ]; then
         eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
         rm -rf "$RABBITMQADMIN"
     fi
-fi
 
-if [ ${#@} -lt 2 ]; then
-    echo 'Invalid arguments'
-    exit 1
-fi
-
-# Run command in docker
-if [ $1 = 'run' ]; then
+elif [ $1 = 'run' ]; then
+    if [ ${#@} -lt 2 ]; then
+        echo 'Err! Command is missing'
+        exit 1
+    fi
     cd "$ROOTDIR"
 
     OIFS="$IFS"
@@ -150,12 +143,15 @@ if [ ! -d "$ROOTDIR/$2" ]; then
     echo $'Version not support: '"$ROOTDIR/$2"
     exit 1
 fi
-
 VERSION=$2
 VERSONDIR="$ROOTDIR/$2"
 cd $VERSONDIR
 
 if [ $1 = 'build' ]; then
+    if [ ${#@} -lt 2 ]; then
+        echo 'Err! Version is missing'
+        exit 1
+    fi
     for IMAGE in ${OMSIMAGES[@]} ; do
         echo "* oms/$IMAGE:$VERSION..."
         IMAGETAG="oms/$IMAGE:$VERSION"
@@ -179,6 +175,10 @@ if [ $1 = 'build' ]; then
     replace_string_in_file 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
     replace_string_in_file 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
 elif [ $1 = 'start' ]; then 
+    if [ ${#@} -lt 2 ]; then
+        echo 'Err! Version is missing'
+        exit 1
+    fi
     docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
 fi
 
