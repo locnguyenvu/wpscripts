@@ -17,5 +17,5 @@ ln -Fs "$PRDIR/zalora/oms/bin/zoms"
 
 echo $'\n# locnguyenvu/wpscripts commands' >> ~/.zshrc
 echo 'if [[ ! "$PATH" == *'"$PRDIR"'/bin* ]]; then 
-    export PATH=PATH="${PATH:+${PATH}:}'"$PRDIR"'/bin" 
+    export PATH="${PATH:+${PATH}:}'"$PRDIR"'/bin" 
 fi' >> ~/.zshrc
