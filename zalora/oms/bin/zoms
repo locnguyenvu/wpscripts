@@ -41,6 +41,35 @@ function get_active_version() {
     done
 }
 
+function execute_console_in_docker() {
+    commandPattern=$1
+    if [ -z "$commandPattern" ]; then
+        echo 'Err! Command is missing'
+        exit 1
+    fi
+
+    OIFS="$IFS"
+    IFS='/'
+    read -a chunks <<< "$commandPattern"
+
+    EXEC_COMMAND='php oms/cli/index.php --env=dev --module='"${chunks[0]}"' --controller='"${chunks[1]}"' --action='"${chunks[2]}"
+
+    echo $EXEC_COMMAND 
+    echo $'\n'
+
+    IFS=' '
+
+    ACTIVE_VERSION=$(get_active_version)
+    read -a versions <<< $(echo */)
+
+    IMAGETAG='oms/fpm:'"$(get_active_version)"
+    docker ps --filter ancestor="$IMAGETAG" --format '{{.ID}}' | \
+        while read dockerid ; do docker exec "$dockerid" bash -c "$EXEC_COMMAND" ; done
+
+    IFS="$OIFS"
+    exit 1
+}
+
 if [ -z $1 ]; then
     print_help
     exit 1
@@ -106,33 +135,16 @@ elif [ "$1" = 'setup' ]; then
         eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
         rm -rf "$RABBITMQADMIN"
     fi
+elif [ $1 = 'migrate' ]; then
+    execute_console_in_docker maintenance/schema-updater/dbTable
+    exit 1
 
 elif [ $1 = 'run' ]; then
     if [ ${#@} -lt 2 ]; then
         echo 'Err! Command is missing'
         exit 1
     fi
-    cd "$ROOTDIR"
-
-    OIFS="$IFS"
-    IFS='/'
-    read -a chunks <<< "$2"
-
-    EXEC_COMMAND='php oms/cli/index.php --env=dev --module='"${chunks[0]}"' --controller='"${chunks[1]}"' --action='"${chunks[2]}"
-
-    echo $EXEC_COMMAND 
-    echo $'\n'
-
-    IFS=' '
-    read -a versions <<< $(echo */)
-
-    for version in "${versions[@]}"; do
-        IMAGETAG='oms/fpm:'"${version/\//}"
-        docker ps --filter ancestor="$IMAGETAG" --format '{{.ID}}' | \
-            while read dockerid ; do docker exec "$dockerid" bash -c "$EXEC_COMMAND" ; done
-    done
-
-    IFS="$OIFS"
+    execute_console_in_docker $2
     exit 1
 fi
 
