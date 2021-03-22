@@ -14,6 +14,7 @@ mkdir $PRDIR/bin
 cd bin
 
 ln -Fs "$PRDIR/zalora/oms/bin/zoms" 
+ln -Fs "$PRDIR/utils/git-copy-files.sh" "git-copy-files"
 
 echo $'\n# locnguyenvu/wpscripts commands' >> ~/.zshrc
 echo 'if [[ ! "$PATH" == *'"$PRDIR"'/bin* ]]; then 

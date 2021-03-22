@@ -126,15 +126,17 @@ elif [ "$1" = 'setup' ]; then
     if [  $RABBITMQCONTAINERID ]; then
         echo $'\n# Setup rabbitmq...'
         docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl start_app"
-        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost vn"
-        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'vn' 'guest' '.*' '.*' '.*'"
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost my"
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'my' 'guest' '.*' '.*' '.*'"
     
         RABBITMQADMIN="$CURDIR"'/rabbitmqadmin'
         curl localhost:15672/cli/rabbitmqadmin >| $RABBITMQADMIN
         chmod +x "$RABBITMQADMIN"
-        eval "$RABBITMQADMIN declare exchange --vhost=vn name=oms type=topic"
+        eval "$RABBITMQADMIN declare exchange --vhost=my name=oms type=topic"
         rm -rf "$RABBITMQADMIN"
     fi
+elif [ $1 = 'init-queue' ]; then 
+    execute_console_in_docker external/rabbitmq/setup
 elif [ $1 = 'migrate' ]; then
     execute_console_in_docker maintenance/schema-updater/dbTable
     exit 1
@@ -146,6 +148,13 @@ elif [ $1 = 'run' ]; then
     fi
     execute_console_in_docker $2
     exit 1
+elif [ $1 = 'clearcache' ]; then
+    MEMCACHEID=$(docker ps --filter ancestor=memcached:1.6.7 --format {{.ID}})
+    if [ -z $MEMCACHEID ]; then
+        echo 'Docker has not been started yet'
+        exit 1
+    fi
+    docker restart $MEMCACHEID
 fi
 
 
