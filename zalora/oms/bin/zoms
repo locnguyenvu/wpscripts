@@ -70,6 +70,24 @@ function execute_console_in_docker() {
     exit 1
 }
 
+function db_migration() {
+    gitdir=$(ls -la | grep .git | wc -l)
+    if [ $gitdir -eq 0 ]; then
+        echo 'Please change dir to product directory'
+        exit 1
+    fi
+
+    if [ $(git status -s | grep "oms/application/configs/dataMigrations.php" | wc -l) -eq 1 ]; then
+        echo 'Update data only'
+        execute_console_in_docker maintenance/schema-updater/data-migration
+    elif [ $(git status -s | grep "oms/application/configs/migrations.php" | wc -l) -eq 1 ]; then
+        echo 'Update schema/table structure'
+        execute_console_in_docker maintenance/schema-updater/dbtable
+    else
+        echo 'Not data/schema change'
+    fi
+}
+
 if [ -z $1 ]; then
     print_help
     exit 1
@@ -137,10 +155,9 @@ elif [ "$1" = 'setup' ]; then
     fi
 elif [ $1 = 'init-queue' ]; then 
     execute_console_in_docker external/rabbitmq/setup
-elif [ $1 = 'migrate' ]; then
-    execute_console_in_docker maintenance/schema-updater/dbTable
+elif [ $1 = 'db-migrate' ]; then
+    db_migration
     exit 1
-
 elif [ $1 = 'run' ]; then
     if [ ${#@} -lt 2 ]; then
         echo 'Err! Command is missing'
