@@ -1,3 +1,5 @@
 **/fpm/extensions
 **/docker-compose.yml
 bin/**
+
+.env

@@ -18,7 +18,7 @@ services:
         container_name: zoms-nginx-php74
         restart: unless-stopped
         build:
-            context: ./docker
+            context: ./build
             dockerfile: Dockerfile.nginx
         ports:
             - "8080:80"
@@ -30,7 +30,7 @@ services:
         container_name: zoms-php74
         restart: unless-stopped
         build: 
-            context: ./docker
+            context: ./build
             dockerfile: Dockerfile.php74
         volumes:
             - type: bind
