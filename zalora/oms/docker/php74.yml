@@ -2,24 +2,25 @@ version: "3.8"
 
 services:
     memcached:
-        container_name: zoms-memcached-php74
+        container_name: zaloraoms-memcached-php74
         image: memcached:1.6.7
         restart: always
         ports:
             - "11211:11211"
     rabbitmq:
-        container_name: zoms-rabbitmq-php74
+        container_name: zaloraoms-rabbitmq-php74
         image: rabbitmq:management
         restart: always
         ports:
             - "5672:5672"
             - "15672:15672"
     nginx:
-        container_name: zoms-nginx-php74
+        container_name: zaloraoms-web-php74
         restart: unless-stopped
         build:
             context: ./build
             dockerfile: Dockerfile.nginx
+        image: zalora-oms/nginx:php74
         ports:
             - "8080:80"
         volumes:
@@ -27,17 +28,19 @@ services:
               source: ${PROJECT_DIR} 
               target: /var/www/html
     fpm:
-        container_name: zoms-php74
+        environment:
+            - XDEBUG_CONFIG=client_host=host.docker.internal
+            - XDEBUG_MODE=develop,debug
+            - APPLICATION_ENV=dev
+        container_name: zaloraoms-fpm-php74
         restart: unless-stopped
         build: 
             context: ./build
             dockerfile: Dockerfile.php74
+        image: zalora-oms/fpm:php74
         volumes:
             - type: bind
               source: ${PROJECT_DIR}
               target: /var/www/html
         expose:
             - "9000"
-        environment:
-            - XDEBUG_CONFIG="idekey=VSCODE client_host=host.docker.internal discover_client_host=1 cli_color=1 tart_with_request=yes mode=debug"
-            - APPLICATION_ENV=dev
