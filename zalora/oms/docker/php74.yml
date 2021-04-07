@@ -2,20 +2,20 @@ version: "3.8"
 
 services:
     memcached:
-        container_name: zaloraoms-memcached-php74
+        container_name: zalora_oms_memcached
         image: memcached:1.6.7
-        restart: always
+        restart: unless-stopped
         ports:
             - "11211:11211"
     rabbitmq:
-        container_name: zaloraoms-rabbitmq-php74
+        container_name: zalora_oms_rabbitmq
         image: rabbitmq:management
-        restart: always
+        restart: unless-stopped
         ports:
             - "5672:5672"
             - "15672:15672"
     nginx:
-        container_name: zaloraoms-web-php74
+        container_name: zalora_oms_web
         restart: unless-stopped
         build:
             context: ./build
@@ -32,7 +32,7 @@ services:
             - XDEBUG_CONFIG=client_host=host.docker.internal
             - XDEBUG_MODE=develop,debug
             - APPLICATION_ENV=dev
-        container_name: zaloraoms-fpm-php74
+        container_name: zalora_oms
         restart: unless-stopped
         build: 
             context: ./build
