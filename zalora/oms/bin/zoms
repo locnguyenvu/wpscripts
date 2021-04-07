@@ -7,9 +7,7 @@ else
 fi
 
 ROOTDIR=$(dirname $CURDIR)
-OMSIMAGES=(baseimage nginx fpm)
-SUPPORTVERSIONS=( php72 php74 )
-
+DOCKERDIR="${ROOTDIR}/docker"
 
 function replace_string_in_file() {
     sedpattern=$1
