@@ -37,7 +37,7 @@ services:
         build: 
             context: ./build
             dockerfile: Dockerfile.php72
-        image: zalora-oms/fpm:php74
+        image: zalora-oms/fpm:php72
         volumes:
             - type: bind
               source: ${PROJECT_DIR}

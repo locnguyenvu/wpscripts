@@ -9,6 +9,7 @@ fi
 ROOTDIR=$(dirname $CURDIR)
 DOCKERDIR="${ROOTDIR}/docker"
 OMSCONTAINERNAME="zalora_oms"
+DEFAULTVERSION=php72
 
 function replace_string_in_file() {
     sedpattern=$1
@@ -29,17 +30,6 @@ function print_help() {
     cat $DOCDIR/zoms.txt
 }
 
-function get_active_version() {
-    for version in "${SUPPORTVERSIONS[@]}"; do
-        IMAGETAG='oms/fpm:'"${version/\//}"
-        COUNTACTIVE=$(docker ps --filter ancestor="$IMAGETAG" --format {{.ID}} | wc -l)
-        if [ $COUNTACTIVE -eq 1 ]; then
-            echo $version
-            return
-        fi
-    done
-}
-
 function execute_oms_command() {
     if [ $(docker ps --filter name=zalora_oms$ --format {{.ID}} | wc -l) -lt 1 ]; then
         echo "Zalora OMS container has not started yet!"
@@ -50,9 +40,10 @@ function execute_oms_command() {
     OIFS="$IFS"
     IFS='/'
     read -a chunks <<< "$commandPattern"
-    EXEC_COMMAND='php oms/cli/index.php --env=dev --module='"${chunks[0]}"' --controller='"${chunks[1]}"' --action='"${chunks[2]}"
+    EXEC_COMMAND='export XDEBUG_MODE=develop && php oms/cli/index.php --env=dev --module='"${chunks[0]}"' --controller='"${chunks[1]}"' --action='"${chunks[2]}"
 
     docker exec -it $OMSCONTAINERNAME sh -c "$EXEC_COMMAND"
+    IFS="$OIFS"
 }
 
 function db_migration() {
@@ -74,71 +65,65 @@ if [ -z $1 ]; then
     exit 1
 fi
 
-if [ "$1" = 'ps' ]; then
-    ACTIVE_VERSION=$(get_active_version)
-    if [ -z $ACTIVE_VERSION ]; then
-        echo 'Environment has not started yet'
-    else
-        echo 'Current version: '"$ACTIVE_VERSION"
-        docker-compose -f "$ROOTDIR/$ACTIVE_VERSION/docker-compose.yml" -p "oms_$ACTIVE_VERSION" ps
-    fi
-    exit 1
-
-elif [ "$1" = 'ssh' ]; then
-    cd "$ROOTDIR"
-    read -a versions <<< $(echo */)
-    for version in "${versions[@]}"; do
-        FPMIMAGEID=$(docker ps --filter ancestor='oms/fpm:'"${version/\//}" --format {{.ID}})
-        if [ -z $FPMIMAGEID ]; then
-            continue
+if [ "$1" = 'docker' ]; then
+    command=$2
+    if [ $command = 'init' ]; then
+        if [ -z $3 ]; then
+            version=$DEFAULTVERSION
         else
-            docker exec -it "$FPMIMAGEID" bash
-            exit 1
+            version=$3
         fi
-    done
-    exit 1
+        
+        if [ $(find $DOCKERDIR -type f -name "${version}.yml" | wc -l) -eq 0 ]; then
+            echo "Invalid version"
+            exit
+        fi
+        docker-compose -f "${DOCKERDIR}/${version}.yml" -p zalora_oms up --build --remove-orphans -d
+    elif [ $command = 'start' ]; then
+        if [ $(docker container ls -a --filter name=zalora_oms$ --format {{.ID}} | wc -l) -eq 0 ]; then
+            echo 'Docker container not found. Run command to init containers `zoms docker init`'
+            exit
+        fi
 
-elif [ "$1" = 'stop' ]; then
-    ACTIVE_VERSION=$(get_active_version)
-    if [ -z $ACTIVE_VERSION ]; then
-        exit 1
+        if [ -z $3 ]; then
+            version=$DEFAULTVERSION
+        else
+            version=$3
+        fi
+        
+        if [ $(find $DOCKERDIR -type f -name "${version}.yml" | wc -l) -eq 0 ]; then
+            echo "Invalid version"
+            exit
+        fi
+        docker-compose -f "${DOCKERDIR}/${version}.yml" -p zalora_oms start
+    elif [ $command = 'stop' ]; then
+        find $DOCKERDIR -type f -name "*.yml" | while read file; do docker-compose -f $file -p zalora_oms stop; done
+    elif [ $command = 'restart' ]; then
+        find $DOCKERDIR -type f -name "*.yml" | while read file; do docker-compose -f $file -p zalora_oms restart; done
     fi
-    cd "$ROOTDIR/$ACTIVE_VERSION"
-    docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml stop
+    exit
 
-elif [ "$1" = 'restart' ]; then
-    ACTIVE_VERSION=$(get_active_version)
-    if [ -z $ACTIVE_VERSION ]; then
-        exit 1
-    fi
-    cd "$ROOTDIR/$ACTIVE_VERSION"
-    docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml stop
-    docker-compose -p 'oms_'"$ACTIVE_VERSION" -f docker-compose.yml up -d
-
-elif [ "$1" = 'setup' ]; then
-    IS_ACTIVE=$(get_active_version)
-    if [ -z $IS_ACTIVE ]; then
-        echo 'Envinronment has not start yet'
-        exit 1
-    fi
+elif [ $1 = 'init-queue' ]; then 
     RABBITMQCONTAINERID=$(docker ps --filter ancestor=rabbitmq:management --format {{.ID}})
     if [  $RABBITMQCONTAINERID ]; then
         echo $'\n# Setup rabbitmq...'
         docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl start_app"
-        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost my"
-        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p 'my' 'guest' '.*' '.*' '.*'"
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl add_vhost /my"
+        docker exec "$RABBITMQCONTAINERID" bash -c "rabbitmqctl set_permissions -p '/my' 'guest' '.*' '.*' '.*'"
     
         RABBITMQADMIN="$CURDIR"'/rabbitmqadmin'
-        curl localhost:15672/cli/rabbitmqadmin >| $RABBITMQADMIN
+        curl -s localhost:15672/cli/rabbitmqadmin >| $RABBITMQADMIN
         chmod +x "$RABBITMQADMIN"
-        eval "$RABBITMQADMIN declare exchange --vhost=my name=oms type=topic"
+        eval "$RABBITMQADMIN declare exchange --vhost=/my name=oms type=topic"
         rm -rf "$RABBITMQADMIN"
     fi
-elif [ $1 = 'init-queue' ]; then 
     execute_oms_command external/rabbitmq/setup
+    exit 1
+
 elif [ $1 = 'db-migrate' ]; then
     db_migration
     exit 1
+
 elif [ $1 = 'run' ]; then
     if [ ${#@} -lt 2 ]; then
         echo 'Err! Command is missing'
@@ -146,6 +131,7 @@ elif [ $1 = 'run' ]; then
     fi
     execute_oms_command $2
     exit 1
+
 elif [ $1 = 'clearcache' ]; then
     MEMCACHEID=$(docker ps --filter ancestor=memcached:1.6.7 --format {{.ID}})
     if [ -z $MEMCACHEID ]; then
@@ -153,51 +139,5 @@ elif [ $1 = 'clearcache' ]; then
         exit 1
     fi
     docker restart $MEMCACHEID
-fi
-
-
-# Build images
-
-if [ ! -d "$ROOTDIR/$2" ]; then
-    echo $'Version not support: '"$ROOTDIR/$2"
     exit 1
 fi
-VERSION=$2
-VERSONDIR="$ROOTDIR/$2"
-cd $VERSONDIR
-
-if [ $1 = 'build' ]; then
-    if [ ${#@} -lt 2 ]; then
-        echo 'Err! Version is missing'
-        exit 1
-    fi
-    for IMAGE in ${OMSIMAGES[@]} ; do
-        echo "* oms/$IMAGE:$VERSION..."
-        IMAGETAG="oms/$IMAGE:$VERSION"
-        CONTAINERID=$(docker container ls -a --filter ancestor="$IMAGETAG" --format {{.ID}})
-        if [ ! -z "$CONTAINERID" ]; then
-            docker container ls -a --filter ancestor="$IMAGETAG" --format {{.ID}} | \
-                while read line; do 
-                    echo "Removing container existent containers..."
-                    docker stop "$line" 
-                    docker rm "$line"
-                done
-        fi
-        docker build -q -t 'oms/'"$IMAGE"':'"$VERSION" "$IMAGE"
-    done
-
-    DOCKERCOMPOSEFILE="$VERSONDIR"'/docker-compose.yml'
-    cp "$ROOTDIR/docker-compose-template.yml" $DOCKERCOMPOSEFILE
-    if [ -z $OMS_PROJ_PATH ]; then
-        read -p "- oms path: " OMS_PROJ_PATH
-    fi
-    replace_string_in_file 's/%version%/'"$VERSION"'/g' $DOCKERCOMPOSEFILE
-    replace_string_in_file 's/%project_path%/'"${OMS_PROJ_PATH//\//\\/}"'/g' $DOCKERCOMPOSEFILE
-elif [ $1 = 'start' ]; then 
-    if [ ${#@} -lt 2 ]; then
-        echo 'Err! Version is missing'
-        exit 1
-    fi
-    docker-compose -p 'oms_'"$VERSION" -f docker-compose.yml up -d
-fi
-
