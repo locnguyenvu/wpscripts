@@ -2,4 +2,4 @@ FROM nginx:stable-alpine
 
 WORKDIR /var/www/html
 
-COPY ./nginx/app.conf /etc/nginx/conf.d/default.conf
+COPY ./nginx/oms.conf /etc/nginx/conf.d/default.conf

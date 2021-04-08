@@ -8,6 +8,7 @@ fi
 
 ROOTDIR=$(dirname $CURDIR)
 DOCKERDIR="${ROOTDIR}/docker"
+OMSCONTAINERNAME="zalora_oms"
 
 function replace_string_in_file() {
     sedpattern=$1
@@ -39,48 +40,30 @@ function get_active_version() {
     done
 }
 
-function execute_console_in_docker() {
-    commandPattern=$1
-    if [ -z "$commandPattern" ]; then
-        echo 'Err! Command is missing'
+function execute_oms_command() {
+    if [ $(docker ps --filter name=zalora_oms$ --format {{.ID}} | wc -l) -lt 1 ]; then
+        echo "Zalora OMS container has not started yet!"
         exit 1
     fi
 
+    commandPattern=$1
     OIFS="$IFS"
     IFS='/'
     read -a chunks <<< "$commandPattern"
-
     EXEC_COMMAND='php oms/cli/index.php --env=dev --module='"${chunks[0]}"' --controller='"${chunks[1]}"' --action='"${chunks[2]}"
 
-    echo $EXEC_COMMAND 
-    echo $'\n'
-
-    IFS=' '
-
-    ACTIVE_VERSION=$(get_active_version)
-    read -a versions <<< $(echo */)
-
-    IMAGETAG='oms/fpm:'"$(get_active_version)"
-    docker ps --filter ancestor="$IMAGETAG" --format '{{.ID}}' | \
-        while read dockerid ; do docker exec "$dockerid" bash -c "$EXEC_COMMAND" ; done
-
-    IFS="$OIFS"
-    exit 1
+    docker exec -it $OMSCONTAINERNAME sh -c "$EXEC_COMMAND"
 }
 
 function db_migration() {
-    gitdir=$(ls -la | grep .git | wc -l)
-    if [ $gitdir -eq 0 ]; then
-        echo 'Please change dir to product directory'
-        exit 1
-    fi
+    PROJECT_DIR=$(docker inspect zalora_oms --format='{{json .HostConfig.Mounts}}' | jq '.[0].Source' | sed 's/"//g')
 
-    if [ $(git status -s | grep "oms/application/configs/dataMigrations.php" | wc -l) -eq 1 ]; then
+    if [ $(git -C "$PROJECT_DIR" status -s | grep "oms/application/configs/dataMigrations.php" | wc -l) -eq 1 ]; then
         echo 'Update data only'
-        execute_console_in_docker maintenance/schema-updater/data-migration
-    elif [ $(git status -s | grep "oms/application/configs/migrations.php" | wc -l) -eq 1 ]; then
+        execute_oms_command maintenance/schema-updater/data-migration
+    elif [ $(git -C "$PROJECT_DIR" status -s | grep "oms/application/configs/migrations.php" | wc -l) -eq 1 ]; then
         echo 'Update schema/table structure'
-        execute_console_in_docker maintenance/schema-updater/dbtable
+        execute_oms_command maintenance/schema-updater/dbtable
     else
         echo 'Not data/schema change'
     fi
@@ -152,7 +135,7 @@ elif [ "$1" = 'setup' ]; then
         rm -rf "$RABBITMQADMIN"
     fi
 elif [ $1 = 'init-queue' ]; then 
-    execute_console_in_docker external/rabbitmq/setup
+    execute_oms_command external/rabbitmq/setup
 elif [ $1 = 'db-migrate' ]; then
     db_migration
     exit 1
@@ -161,7 +144,7 @@ elif [ $1 = 'run' ]; then
         echo 'Err! Command is missing'
         exit 1
     fi
-    execute_console_in_docker $2
+    execute_oms_command $2
     exit 1
 elif [ $1 = 'clearcache' ]; then
     MEMCACHEID=$(docker ps --filter ancestor=memcached:1.6.7 --format {{.ID}})
