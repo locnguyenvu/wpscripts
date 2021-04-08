@@ -4,21 +4,16 @@ Usage: zoms <commands> <args>
 
 Commands:
 
-    build <php-version>       
-            Prepare docker images, supported versions: php72, php74
-            Old containers & images will be deleted
+    docker <command>
+        
+        Commands:
+            * init <version>
 
-    start <php-version>       
-            Start docker compose, supported versions: php72, php74
+            * start <version>
 
-    ps
-            List current active environment
+            * stop
 
-    restart
-            Restart all oms containers
-
-    stop
-            Stop all oms containers
+            * restart
 
     run <command-alias>
             Run commands in oms applications
@@ -28,5 +23,11 @@ Commands:
             equivalent to: 
                 php oms/cli/index.php --env=dev --module=debug --controller=cli --action=test
 
+    data-migrate
+            Trigger ZendFramework migration
 
+    init-queue
+            Setup for rabbitmq
 
+    clearcache
+            Clear application cache
