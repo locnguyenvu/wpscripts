@@ -1,0 +1,4 @@
+Convert date
+Usage:
+    * iso_timestamp <iso_datetime format>
+        ex: cdate iso_timestamp "2020-12-10 12:12:31"

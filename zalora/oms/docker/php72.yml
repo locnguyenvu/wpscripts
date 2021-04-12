@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+    memcached:
+        container_name: zalora_oms_memcached
+        image: memcached:1.6.7
+        restart: unless-stopped
+        ports:
+            - "11211:11211"
+    rabbitmq:
+        container_name: zalora_oms_rabbitmq
+        image: rabbitmq:management
+        restart: unless-stopped
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+    nginx:
+        container_name: zalora_oms_web
+        restart: unless-stopped
+        build:
+            context: ./build
+            dockerfile: Dockerfile.nginx
+        image: zalora-oms/nginx:php72
+        ports:
+            - "8080:80"
+        volumes:
+            - type: bind
+              source: ${PROJECT_DIR} 
+              target: /var/www/html
+    fpm:
+        environment:
+            - XDEBUG_CONFIG=client_host=host.docker.internal log=/tmp/xdebug.log
+            - XDEBUG_MODE=develop,debug
+            - APPLICATION_ENV=dev
+        container_name: zalora_oms
+        restart: unless-stopped
+        build: 
+            context: ./build
+            dockerfile: Dockerfile.php72
+        image: zalora-oms/fpm:php72
+        volumes:
+            - type: bind
+              source: ${PROJECT_DIR}
+              target: /var/www/html
+        expose:
+            - "9000"
