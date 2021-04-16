@@ -1,9 +1,24 @@
 # Build images
 
-Requirements
+Init
+```
+zoms docker init <version|php74,php72>
+```
 
-[Download package JDK-12.0.2](https://jdk.java.net/archive/) and extracts following locations `php*/fpm/extions/jdk-12.0.2`
+Start
+```
+zoms docker start
+```
 
+Stop
+```
+zoms docker stop
+```
+
+Restart
+```
+zoms docker restart
+```
 
 # Setup
 
