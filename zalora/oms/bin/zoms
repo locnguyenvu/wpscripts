@@ -9,17 +9,6 @@ fi
 ROOTDIR=$(dirname $CURDIR)
 DOCKERDIR="${ROOTDIR}/docker"
 OMSCONTAINERNAME="zalora_oms"
-DEFAULTVERSION=php72
-
-function replace_string_in_file() {
-    sedpattern=$1
-    filepath=$2
-    systemname=$(uname -s)
-    case "${systemname}" in
-        Linux*) sed -i $sedpattern $filepath;;
-        Darwin*) sed -i '' -e $sedpattern $filepath;;
-    esac
-}
 
 function print_help() {
     if [[ -L "$0" ]] ; then
@@ -68,16 +57,24 @@ fi
 if [ "$1" = 'docker' ]; then
     command=$2
     if [ $command = 'init' ]; then
-        if [ -z $3 ]; then
-            version=$DEFAULTVERSION
-        else
-            version=$3
+
+        if [ ! -f $DOCKERDIR'/.env' ]; then
+            touch $DOCKERDIR'/.env'
         fi
         
-        if [ $(find $DOCKERDIR -type f -name "${version}.yml" | wc -l) -eq 0 ]; then
-            echo "Invalid version"
-            exit
+        if [ $(cat $DOCKERDIR'/.env' | grep PROJECT_DIR | wc -l) -lt 1 ]; then
+            echo "OMS project directory path:"
+            read PROJECT_DIR
+            echo "PROJECT_DIR="$PROJECT_DIR >> $DOCKERDIR'/.env'
         fi
+        
+        echo "Select php version: "
+        SUPPORT_VERSIONS=$(find $DOCKERDIR -type f -name "*.yml" | while read file; do echo $(basename $file | sed 's/\.yml//g'); done)
+        select version in $SUPPORT_VERSIONS
+        do
+            break
+        done
+
         docker-compose -f "${DOCKERDIR}/${version}.yml" -p zalora_oms up --build --remove-orphans -d
     elif [ $command = 'start' ]; then
         if [ $(docker container ls -a --filter name=zalora_oms$ --format {{.ID}} | wc -l) -eq 0 ]; then
@@ -85,12 +82,8 @@ if [ "$1" = 'docker' ]; then
             exit
         fi
 
-        if [ -z $3 ]; then
-            version=$DEFAULTVERSION
-        else
-            version=$3
-        fi
-        
+        version=$(docker container ls -a --filter name=zalora_oms$ --format {{.Image}} | grep -ioh "php7.$")
+
         if [ $(find $DOCKERDIR -type f -name "${version}.yml" | wc -l) -eq 0 ]; then
             echo "Invalid version"
             exit
