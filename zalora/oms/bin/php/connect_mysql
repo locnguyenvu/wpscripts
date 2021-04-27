@@ -1,0 +1,158 @@
+#!/usr/bin/env php
+<?php
+
+$scriptArguments = $argv;
+array_shift($scriptArguments);
+
+$autoGentSettingKeyFilePath = $scriptArguments[0];
+
+function sync_table_stucture($sourceConn, $tmpdbConn) {
+    $querySuccess = mysqli_multi_query($sourceConn, implode('', [
+        'show create table `oms_settings_group`;',
+        'show create table `oms_settings`;', 
+        'show create table `oms_settings_element`;',
+    ]));
+    
+    if ($querySuccess) {
+        do {
+            $result = mysqli_store_result($sourceConn);
+            
+            $data = mysqli_fetch_row($result);
+            // Remove contraint
+            $createTableSqlChunks = array_filter(
+                explode(PHP_EOL, $data[1]),
+                function($line) {
+                    return !preg_match('/CONSTRAINT/i', $line);
+                }
+            );
+            $lastTableOptions = count($createTableSqlChunks)-2;
+            $createTableSqlChunks[$lastTableOptions] = preg_replace('/,$/', '', $createTableSqlChunks[$lastTableOptions]);
+            mysqli_query($tmpdbConn, implode(PHP_EOL, $createTableSqlChunks));
+            mysqli_free_result($result);
+        } while (mysqli_next_result($sourceConn));
+    }
+}
+
+function get_data_keys_by_table($table) {
+    global $autoGentSettingKeyFilePath;
+    if ($table == 'oms_settings_group') {
+        $settingGroupKey = [];
+        $autoGentSettingKeyFileContent = file_get_contents($autoGentSettingKeyFilePath); 
+        preg_match_all('/SETTING_GROUP_.*/', $autoGentSettingKeyFileContent, $matched);
+        foreach($matched[0] as $matchPattern) {
+            preg_match('/\'.*\'/', $matchPattern, $output);
+            if (!empty($output)) {
+                $settingGroupKey[] = array_shift($output);
+            }
+        }
+        return $settingGroupKey;
+    }
+    
+    if ($table == 'oms_settings') {
+        $settingKey = [];
+        preg_match_all('/SETTING_.*/', $autoGentSettingKeyFileContent, $matched);
+        foreach($matched[0] as $matchPattern) {
+            if (preg_match('/^SETTING_GROUP_/', $matchPattern)) continue;
+            preg_match('/\'.*\'/', $matchPattern, $output);
+            if (!empty($output)) {
+                $settingKey[] = array_shift($output);
+            }
+        }
+        return $settingKey;
+    }
+    
+    if ($table == 'oms_settings_element') {
+        $settingElementKey = [];
+        preg_match_all('/const .*/', $autoGentSettingKeyFileContent, $matched);
+        foreach($matched[0] as $matchPattern) {
+            if (preg_match('/^SETTING_/', $matchPattern)) continue;
+            preg_match('/\'.*\'/', $matchPattern, $output);
+            if (!empty($output)) {
+                $settingElementKey[] = array_shift($output);
+            }
+        }
+    }
+}
+
+function sync_table($sourceConn, $targetConn, $tableName) {
+    /*
+     * Table structure
+     */
+    $createTableResult = mysqli_query($sourceConn, sprintf('SHOW CREATE TABLE `%s`', $tableName));
+    $data = mysqli_fetch_row($createTableResult);
+    $createTableSqlChunks = array_filter(
+        explode(PHP_EOL, $data[1]),
+        function($line) {
+            return !preg_match('/CONSTRAINT/i', $line);
+        }
+    );
+    $lastTableOptions = count($createTableSqlChunks)-2;
+    $createTableSqlChunks[$lastTableOptions] = preg_replace('/,$/', '', $createTableSqlChunks[$lastTableOptions]);
+    mysqli_query($targetConn, implode(PHP_EOL, $createTableSqlChunks));
+
+    $syncDataFilter = get_data_keys_by_table($tableName);
+
+    $filterDataSql = sprintf("SELECT * FROM %s WHERE %s in (%s)", $tableName, 'name', implode(',', array_fill(0, count($syncDataFilter), '?')));
+    $stmt = mysqli_prepare($sourceConn, $filterDataSql);
+
+    $bindMysqliArgs = $syncDataFilter;
+    array_unshift($bindMysqliArgs, $stmt, implode('', array_fill(0, $bindMysqliArgs, 's')));
+    call_user_func_array('mysqli_stmt_bind_param', $bindMysqliArgs);
+    $result = mysqli_stmt_execute($stmt);
+    while($data = mysqli_stmt_fetch($result)) {
+        var_dump($data);
+        die;
+    }
+}
+
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$sourceConn = mysqli_connect(
+    trim(getenv('SOURCE_DB_HOST')), 
+    trim(getenv('SOURCE_DB_USER')), 
+    trim(getenv('SOURCE_DB_PASSWORD')),
+    trim(getenv('SOURCE_DB_SCHEMA'))
+);
+
+$tmpdbConn = mysqli_connect(
+    trim(getenv('TMP_DB_HOST')), 
+    trim(getenv('TMP_DB_USER')), 
+    trim(getenv('TMP_DB_PASSWORD')),
+    trim(getenv('TMP_DB_SCHEMA'))
+);
+
+/* check connection */
+if (mysqli_connect_errno()) {
+    printf("Connect to source DB failed: %s\n", mysqli_connect_error());
+    exit();
+}
+
+foreach(['oms_settings_group', 'oms_settings', 'oms_settings_element'] as $table) {
+    sync_table($sourceConn, $tmpdbConn, $table);
+}
+exit;
+
+
+$querySuccess = mysqli_multi_query($sourceConn, implode('', [
+    'describe `oms_settings_group`;',
+    // 'show create table `oms_settings_element`;',
+    // 'show create table `oms_settings`;', 
+]));
+
+if ($querySuccess) {
+    do {
+        $result = mysqli_store_result($sourceConn);
+        
+        while ($data = mysqli_fetch_row($result)) {
+            var_dump($data);
+        }
+
+        mysqli_free_result($result);
+
+        if (mysqli_more_results($sourceConn)) {
+            printf("-----------------\n");
+        }
+
+    } while (mysqli_next_result($sourceConn));
+}
+mysqli_close($sourceConn);

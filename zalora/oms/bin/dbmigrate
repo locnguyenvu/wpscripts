@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+if [ -L "$0" ] ; then
+    CURDIR=$(dirname $(readlink -n "$0"))
+else
+    CURDIR=$(pwd)
+fi
+
+PROJECT_DIR=$(docker inspect zalora_oms --format='{{json .HostConfig.Mounts}}' | jq '.[0].Source' | sed 's/"//g')
+
+FILE_SETTING_KEY=$PROJECT_DIR/oms/application/modules/ext/setting/constants/Keys.php
+FILE_SETTING_MAP=$PROJECT_DIR/oms/application/modules/ext/setting/constants/Mapping.php
+FILE_CONFIG=$PROJECT_DIR/oms/application/configs/dev.ini
+
+SOURCE_DB_HOST=$(awk -F "=" '/resources.multidb.oms.host/ {print $2}' $FILE_CONFIG | sed 's/"//g')
+SOURCE_DB_USER=$(awk -F "=" '/resources.multidb.oms.username/ {print $2}' $FILE_CONFIG | sed 's/"//g')
+SOURCE_DB_PASSWORD=$(awk -F "=" '/resources.multidb.oms.password/ {print $2}' $FILE_CONFIG | sed 's/"//g')
+SOURCE_DB_SCHEMA=$(awk -F "=" '/resources.multidb.oms.dbname/ {print $2}' $FILE_CONFIG | sed 's/"//g')
+
+# TEMPORY DATABASE
+TMP_DB_HOST=127.0.0.1
+TMP_DB_USER=root
+TMP_DB_PASSWORD=aBqiua8aqzP
+TMP_DB_SCHEMA=tmp_oms
+
+EXISTING_TMPDB_CONTAINER=$(docker container ls -a --filter name="tmp_db" --format {{.ID}})
+if [ ! -z $EXISTING_TMPDB_CONTAINER ]; then
+    docker stop $EXISTING_TMPDB_CONTAINER
+fi
+
+echo "Setup tempory db container ..."
+docker run -it --rm --name tmp_db -p 3306:3306 \
+    --platform linux/x86_64 \
+    -e MYSQL_ROOT_PASSWORD=$TMP_DB_PASSWORD \
+    -e MYSQL_DATABASE=$TMP_DB_SCHEMA \
+    -d mysql/mysql-server:5.7
+
+duration=0
+while [ $(docker ps --filter name=tmp_db --format {{.Status}} | grep "(healthy)" | wc -l) -eq 0 ]; do 
+    let "duration+=2"
+    dots=$(printf '%0.1s' '.'{0..$duration})
+    echo -ne ".... $duration Wait mysql server start ${dots}\r"
+    sleep 2s
+done
+docker exec -it tmp_db mysql -u$TMP_DB_USER -p$TMP_DB_PASSWORD $TMP_DB_SCHEMA -e "UPDATE mysql.user SET host='%' WHERE user='root';"
+docker exec -it tmp_db mysql -u$TMP_DB_USER -p$TMP_DB_PASSWORD $TMP_DB_SCHEMA -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;"
+docker exec -it tmp_db mysql -u$TMP_DB_USER -p$TMP_DB_PASSWORD $TMP_DB_SCHEMA -e "FLUSH PRIVILEGES;"
+
+sleep 5s
+
+SOURCE_DB_HOST=$SOURCE_DB_HOST \
+SOURCE_DB_USER=$SOURCE_DB_USER \
+SOURCE_DB_PASSWORD=$SOURCE_DB_PASSWORD \
+SOURCE_DB_SCHEMA=$SOURCE_DB_SCHEMA \
+TMP_DB_HOST=$TMP_DB_HOST \
+TMP_DB_USER=$TMP_DB_USER \
+TMP_DB_PASSWORD=$TMP_DB_PASSWORD \
+TMP_DB_SCHEMA=$TMP_DB_SCHEMA \
+$CURDIR/php/connect_mysql $FILE_SETTING_KEY
+
+#SOURCE_DB_URI=$(php -r "\$config=parse_ini_file('$FILE_CONFIG'); printf('mysql://%s:%s@%s/%s', \$config['resources.multidb.oms.username'], \$config['resources.multidb.oms.password'], \$config['resources.multidb.oms.host'], \$config['resources.multidb.oms.dbname']);")
+
+#FILE_CONFIG=$FILE_CONFIG $CURDIR/php/connect_mysql
+
+
