@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+if [ -z $AWS_PROFILE ]; then
+    echo "Please specify AWS_PROFILE"
+fi
+
+COMMAND=$1
+
+if [ "$COMMAND" = "ls-group" ]; then
+    shift
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( 'aws' 'logs' 'describe-log-groups' )
+
+    while getopts "p:" options; do
+        case "${options}" in
+            p)
+                AWSCOMMAND+=( '--log-group-name-prefix' "${OPTARG}" )
+                ;;
+            *)
+                ;;
+        esac
+    done
+
+    eval "${AWSCOMMAND[@]}" >| /tmp/.wpscripts-awsl-ls-group
+
+    cat /tmp/.wpscripts-awsl-ls-group | jq ".logGroups[].logGroupName" | sed 's/"//g' | fzf
+fi
