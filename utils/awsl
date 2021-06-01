@@ -5,9 +5,8 @@ if [ -z $AWS_PROFILE ]; then
 fi
 
 COMMAND=$1
-
+shift
 if [ "$COMMAND" = "ls-group" ]; then
-    shift
     declare -a AWSCOMMAND
     AWSCOMMAND=( 'aws' 'logs' 'describe-log-groups' )
 
@@ -24,4 +23,24 @@ if [ "$COMMAND" = "ls-group" ]; then
     eval "${AWSCOMMAND[@]}" >| /tmp/.wpscripts-awsl-ls-group
 
     cat /tmp/.wpscripts-awsl-ls-group | jq ".logGroups[].logGroupName" | sed 's/"//g' | fzf
+
+elif [ "$COMMAND" = "find-event" ]; then
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' )
+
+    while getopts "g:p:" options; do
+        case "${options}" in
+            g)
+                AWSCOMMAND+=( '--log-group-name' "${OPTARG}" )
+                ;;
+            p)
+                AWSCOMMAND+=( '--filter-pattern' "${OPTARG}" )
+                ;;
+            *)
+                ;;
+        esac
+    done
+
+    eval "${AWSCOMMAND[@]}" >| /tmp/.wpscripts-awsl-find-event
+    bat -l json /tmp/.wpscripts-awsl-find-event
 fi

@@ -28,11 +28,24 @@ if [ ! -z $EXISTING_TMPDB_CONTAINER ]; then
 fi
 
 echo "Setup tempory db container ..."
-docker run -it --rm --name tmp_db -p 3306:3306 \
-    --platform linux/x86_64 \
-    -e MYSQL_ROOT_PASSWORD=$TMP_DB_PASSWORD \
-    -e MYSQL_DATABASE=$TMP_DB_SCHEMA \
-    -d mysql/mysql-server:5.7
+arch_name=$(uname -m)
+if [ "$arch_name" = "arm64" ]; then
+    docker run -it --rm --name tmp_db -p 3306:3306 \
+        --platform linux/x86_64 \
+        -e MYSQL_ROOT_PASSWORD=$TMP_DB_PASSWORD \
+        -e MYSQL_DATABASE=$TMP_DB_SCHEMA \
+        -d mysql/mysql-server:5.7 || exit 1
+else
+    docker run -it --rm --name tmp_db -p 3306:3306 \
+        --env MYSQL_ROOT_PASSWORD=$TMP_DB_PASSWORD \
+        --env MYSQL_DATABASE=$TMP_DB_SCHEMA \
+        mysql/mysql-server:5.7 || exit 1
+fi
+
+if [ $(docker ps --filter name=tmp_db --format {{.Status}} | grep "Exited" | wc -l) -gt 0]; then
+    echo "Cannot start tmp_db container, please check"
+    exit
+fi
 
 duration=0
 while [ $(docker ps --filter name=tmp_db --format {{.Status}} | grep "(healthy)" | wc -l) -eq 0 ]; do 
