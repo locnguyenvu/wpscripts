@@ -27,20 +27,30 @@ if [ "$COMMAND" = "ls-group" ]; then
 elif [ "$COMMAND" = "find-event" ]; then
     declare -a AWSCOMMAND
     AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' )
+    START_TIME=0
 
-    while getopts "g:p:" options; do
+    while getopts "g:p:t:" options; do
         case "${options}" in
             g)
                 AWSCOMMAND+=( '--log-group-name' "${OPTARG}" )
                 ;;
             p)
-                AWSCOMMAND+=( '--filter-pattern' "${OPTARG}" )
+                AWSCOMMAND+=( '--filter-pattern' "\"${OPTARG}\"" )
+                ;;
+            t)
+                START_TIME="${OPTARG}"
                 ;;
             *)
                 ;;
         esac
     done
 
-    eval "${AWSCOMMAND[@]}" >| /tmp/.wpscripts-awsl-find-event
+    if [ $START_TIME -eq 0 ]; then
+        AWSCOMMAND+=( '--start-time' $(php -r "echo strtotime('-1 day') * 1000;") )
+    else
+        AWSCOMMAND+=( '--start-time' $START_TIME )
+    fi
+
+    eval "${AWSCOMMAND[@]}" >| /tmp/.wpscripts-awsl-find-event || exit 1
     bat -l json /tmp/.wpscripts-awsl-find-event
 fi
