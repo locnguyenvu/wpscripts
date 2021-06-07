@@ -52,5 +52,5 @@ elif [ "$COMMAND" = "find-event" ]; then
     fi
 
     eval "${AWSCOMMAND[@]}" >| /tmp/.wpscripts-awsl-find-event || exit 1
-    bat -l json /tmp/.wpscripts-awsl-find-event
+    bat -l json --style plain,snip --color --theme OneHalfDark /tmp/.wpscripts-awsl-find-event
 fi
