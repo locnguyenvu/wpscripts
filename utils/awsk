@@ -43,20 +43,30 @@ getShardIterator() {
 
 
 COMMAND=$1
-shift
 if [ "$COMMAND" = "get-message" ]; then
+    shift
     STREAMNAME=$1
     shift
     if [ -z $STREAMNAME ]; then
-        echo '
-  Usage: `awsk get-message <stream-name>`'
+        echo
+        echo '   Usage: `awsk get-message <stream-name>`'
         exit
     fi
     SHARDITERATOR=$(getShardIterator "$STREAMNAME" "$@")
     declare -a AWSCOMMAND
-    AWSCOMMAND=( 'aws' 'kinesis' 'get-records' '--shard-iterator' "${SHARDITERATOR}" )
+    while :; do
+        AWSCOMMAND=( 'aws' 'kinesis' 'get-records' '--shard-iterator' "${SHARDITERATOR}" )
 
-    eval "${AWSCOMMAND[@]}" >| /tmp/.awsk_get_message
+        OUTPUT=$(eval "${AWSCOMMAND[@]}" || exit)
 
-    bat -l json --style plain,snip --color --theme OneHalfDark /tmp/.awsk_get_message
+        echo $OUTPUT | jq '.Records[] | {"data": (.Data|@base64d), "partition_key": .PartitionKey, "timestamp": .ApproximateArrivalTimestamp }'
+
+        SHARDITERATOR=$(echo $OUTPUT | jq '.NextShardIterator' | sed 's/"//g')
+        if [ -z $SHARDITERATOR ]; then
+            break;
+        fi
+    done
+    exit
 fi
+
+aws kinesis $@
