@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+if [ -z $AWS_PROFILE ]; then
+    echo "Please specify AWS_PROFILE"
+    exit
+fi
+
+COMMAND=$1
+if [ "$COMMAND" = "ls-group" ]; then
+    shift
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( 'aws' 'logs' 'describe-log-groups' )
+
+    while getopts "p:" options; do
+        case "${options}" in
+            p)
+                AWSCOMMAND+=( '--log-group-name-prefix' "${OPTARG}" )
+                ;;
+            *)
+                ;;
+        esac
+    done
+
+    eval "${AWSCOMMAND[@]}" >| /tmp/.awsl-ls-group
+
+    cat /tmp/.awsl-ls-group | jq ".logGroups[].logGroupName" | sed 's/"//g' | fzf
+    exit
+elif [ "$COMMAND" = "find-event" ]; then
+    shift
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' )
+    START_TIME=0
+
+    while getopts "g:p:t:" options; do
+        case "${options}" in
+            g)
+                AWSCOMMAND+=( '--log-group-name' "${OPTARG}" )
+                ;;
+            p)
+                AWSCOMMAND+=( '--filter-pattern' "\"${OPTARG}\"" )
+                ;;
+            t)
+                START_TIME="${OPTARG}"
+                ;;
+            *)
+                ;;
+        esac
+    done
+
+    if [ $START_TIME -eq 0 ]; then
+        AWSCOMMAND+=( '--start-time' $(php -r "echo strtotime('-1 day') * 1000;") )
+    else
+        AWSCOMMAND+=( '--start-time' $START_TIME )
+    fi
+
+    eval "${AWSCOMMAND[@]}" >| /tmp/.awsl-find-event || exit 1
+    bat -l json --style plain,snip --color --theme OneHalfDark /tmp/.awsl-find-event
+    exit
+fi
+
+aws logs "$@"

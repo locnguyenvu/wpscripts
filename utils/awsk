@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+if [ -z $AWS_PROFILE ]; then
+    echo "Please specify AWS_PROFILE"
+    exit
+fi
+
+function listShardId() {
+    local STREAMNAME=$1
+    local AWSCOMMAND
+    local SHARDIDS
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( 'aws' 'kinesis' 'describe-stream' )
+    AWSCOMMAND+=( '--stream-name' "$STREAMNAME" )
+
+    SHARDIDS=$(eval "${AWSCOMMAND[@]}" | jq '.StreamDescription.Shards[].ShardId' | sed 's/"//g')
+    if [ $(wc -l <<< "${SHARDIDS}") -eq 1 ]; then
+        echo $SHARDIDS
+    else
+        echo $(fzf <<< $SHARDIDS)
+    fi
+}
+
+getShardIterator() {
+    local STREAMNAME=$1
+    local SHARDID=$(listShardId $STREAMNAME)
+    local AWSCOMMAND
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( 'aws' 'kinesis' 'get-shard-iterator')
+    AWSCOMMAND+=( '--stream-name' "${STREAMNAME}" )
+    AWSCOMMAND+=( '--shard-id' "${SHARDID}" )
+
+    shift
+    local OPTIND
+    getopts "t:" timestamp
+    if [ "$timestamp" = "t" ]; then
+        AWSCOMMAND+=( '--shard-iterator-type' 'AT_TIMESTAMP' '--timestamp' ${OPTARG} )
+    else
+        AWSCOMMAND+=( '--shard-iterator-type' 'LATEST' )
+    fi
+    echo $(eval "${AWSCOMMAND[@]}" | jq '.ShardIterator' | sed 's/"//g')
+}
+
+
+COMMAND=$1
+if [ "$COMMAND" = "get-message" ]; then
+    shift
+    STREAMNAME=$1
+    shift
+    if [ -z $STREAMNAME ]; then
+        echo
+        echo '   Usage: `awsk get-message <stream-name>`'
+        exit
+    fi
+    SHARDITERATOR=$(getShardIterator "$STREAMNAME" "$@")
+    declare -a AWSCOMMAND
+    while :; do
+        AWSCOMMAND=( 'aws' 'kinesis' 'get-records' '--shard-iterator' "${SHARDITERATOR}" )
+
+        OUTPUT=$(eval "${AWSCOMMAND[@]}" || exit)
+
+        echo $OUTPUT | jq '.Records[] | {"data": (.Data|@base64d), "partition_key": .PartitionKey, "timestamp": .ApproximateArrivalTimestamp }'
+
+        SHARDITERATOR=$(echo $OUTPUT | jq '.NextShardIterator' | sed 's/"//g')
+        if [ -z $SHARDITERATOR ]; then
+            break;
+        fi
+    done
+    exit
+fi
+
+aws kinesis $@
