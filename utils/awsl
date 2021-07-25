@@ -6,8 +6,8 @@ if [ -z $AWS_PROFILE ]; then
 fi
 
 COMMAND=$1
-shift
 if [ "$COMMAND" = "ls-group" ]; then
+    shift
     declare -a AWSCOMMAND
     AWSCOMMAND=( 'aws' 'logs' 'describe-log-groups' )
 
@@ -24,8 +24,9 @@ if [ "$COMMAND" = "ls-group" ]; then
     eval "${AWSCOMMAND[@]}" >| /tmp/.awsl-ls-group
 
     cat /tmp/.awsl-ls-group | jq ".logGroups[].logGroupName" | sed 's/"//g' | fzf
-
+    exit
 elif [ "$COMMAND" = "find-event" ]; then
+    shift
     declare -a AWSCOMMAND
     AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' )
     START_TIME=0
@@ -54,4 +55,7 @@ elif [ "$COMMAND" = "find-event" ]; then
 
     eval "${AWSCOMMAND[@]}" >| /tmp/.awsl-find-event || exit 1
     bat -l json --style plain,snip --color --theme OneHalfDark /tmp/.awsl-find-event
+    exit
 fi
+
+aws logs "$@"

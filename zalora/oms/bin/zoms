@@ -101,11 +101,11 @@ if [ "$1" = 'docker' ]; then
             echo "Invalid version"
             exit
         fi
-        docker-compose -f "${DOCKERDIR}/${version}.yml" -p zalora_oms start
+        docker-compose -f "${DOCKERDIR}/${version}.yml" --env-file "${DOCKERDIR}/.env" -p zalora_oms start
     elif [ $command = 'stop' ]; then
-        find $DOCKERDIR -type f -name "*.yml" | while read file; do docker-compose -f $file -p zalora_oms stop; done
+        find $DOCKERDIR -type f -name "*.yml" | while read file; do docker-compose -f $file --env-file "${DOCKERDIR}/.env" -p zalora_oms stop; done
     elif [ $command = 'restart' ]; then
-        find $DOCKERDIR -type f -name "*.yml" | while read file; do docker-compose -f $file -p zalora_oms restart; done
+        find $DOCKERDIR -type f -name "*.yml" | while read file; do docker-compose -f $file  --env-file "${DOCKERDIR}/.env"-p zalora_oms restart; done
     fi
     exit
 
