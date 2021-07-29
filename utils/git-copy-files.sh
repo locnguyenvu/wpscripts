@@ -1,18 +1,21 @@
-#!/bin/bash
+#!/usr/bin/env zsh
 
 if [ ${#@} -lt 2 ]; then
     echo 'Merge 2 branch in hard way (cherry-pick)'
-    echo 'Usage: git-copy-files <source_branch> <target_branch>'
+    echo 'Usage: git-copy-files <path_to_change_files> <source_branch> <target_branch>'
     exit 1
 fi
 
-if [ -z "$CHANGE_FILES" ]; then
+if [ ! -f "$1" ]; then
     echo 'Please specifies change files'
     exit 1
 fi
 
-SOURCE_BRANCH=$1
-TARGET_BRANCH=$2
+declare -a CHANGE_FILES
+CHANGE_FILES=( $(cat "$1") )
+
+SOURCE_BRANCH=$2
+TARGET_BRANCH=$3
 
 git checkout $SOURCE_BRANCH
 git pull origin $SOURCE_BRANCH
@@ -24,7 +27,7 @@ mkdir -p $TMP_DIR
 echo $'\nBackup files...'
 for FILE in $CHANGE_FILES
 do
-    cp $FILE "$TMP_DIR/"$(basename $FILE)
+    echo $FILE && cp $FILE "$TMP_DIR/"$(basename $FILE)
 done
 
 # Copy files
