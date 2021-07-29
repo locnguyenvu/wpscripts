@@ -36,5 +36,9 @@ git pull origin $TARGET_BRANCH
 echo $'\nCopy files'
 for FILE in $CHANGE_FILES
 do
+    if [ ! -f "$FILE" ]; then
+        mkdir -p $(dirname $FILE)
+        touch "$FILE"
+    fi
     cat "$TMP_DIR/"$(basename $FILE) >| $FILE
 done

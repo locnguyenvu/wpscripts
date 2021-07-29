@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+usage() {
+    echo "Require environment variable: AWS_SSH_USERNAME, AWS_SSH_KEY"
+}
+
+if [ -z $AWS_SSH_USERNAME ] || [ -z $AWS_SSH_KEY ]; then
+    usage
+    exit 1
+fi
+ 
+INSTANCE_NAME=$1
+echo $INSTANCE_NAME
+shift
+
+declare -a AWSCOMMAND
+AWSCOMMAND=( "aws" "ec2" "describe-instances" )
+AWSCOMMAND+=( "--filter" "Name=tag:Name,Values=${INSTANCE_NAME}" )
+INSTANCE_IP=$( eval "${AWSCOMMAND[@]}" | jq ".Reservations[].Instances[].PublicIpAddress" | fzf --height=20 --layout=reverse)
+
+declare -a SSHCOMMAND
+SSHCOMMAND=( "ssh" "-q" )
+while getopts "j:" options; do
+    case "${options}" in
+        j)
+            SSHCOMMAND+=( '-J' "${OPTARG}" )
+            ;;
+        *)
+            ;;
+    esac
+done
+SSHCOMMAND+=( "-i" "${AWS_SSH_KEY}" "${AWS_SSH_USERNAME}@${INSTANCE_IP//\"/}" )
+echo "${SSHCOMMAND[@]}"
+eval "${SSHCOMMAND[@]}"
