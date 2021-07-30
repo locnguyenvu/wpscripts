@@ -20,15 +20,6 @@ INSTANCE_IP=$( eval "${AWSCOMMAND[@]}" | jq ".Reservations[].Instances[].PublicI
 
 declare -a SSHCOMMAND
 SSHCOMMAND=( "ssh" "-q" )
-while getopts "j:" options; do
-    case "${options}" in
-        j)
-            SSHCOMMAND+=( '-J' "${OPTARG}" )
-            ;;
-        *)
-            ;;
-    esac
-done
-SSHCOMMAND+=( "-i" "${AWS_SSH_KEY}" "${AWS_SSH_USERNAME}@${INSTANCE_IP//\"/}" )
+SSHCOMMAND+=( "-i" "${AWS_SSH_KEY}" "${AWS_SSH_USERNAME}@${INSTANCE_IP//\"/}" "$@")
 echo "${SSHCOMMAND[@]}"
 eval "${SSHCOMMAND[@]}"
