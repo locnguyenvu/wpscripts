@@ -10,7 +10,6 @@ if [ -z $AWS_SSH_USERNAME ] || [ -z $AWS_SSH_KEY ]; then
 fi
  
 INSTANCE_NAME=$1
-echo $INSTANCE_NAME
 shift
 
 declare -a AWSCOMMAND
@@ -26,7 +25,7 @@ background=${b:=0}
 if [ $background -eq 1 ]; then
     SSHCOMMAND+=( '&' )
     eval "${SSHCOMMAND[@]}"
-else 
+    echo $!
+else
     eval "${SSHCOMMAND[@]}"
 fi
-
