@@ -16,10 +16,17 @@ shift
 declare -a AWSCOMMAND
 AWSCOMMAND=( "aws" "ec2" "describe-instances" )
 AWSCOMMAND+=( "--filter" "Name=tag:Name,Values=${INSTANCE_NAME}" )
-INSTANCE_IP=$( eval "${AWSCOMMAND[@]}" | jq ".Reservations[].Instances[].PublicIpAddress" | fzf --height=20 --layout=reverse)
+INSTANCE_IP=$( eval "${AWSCOMMAND[@]}" | jq ".Reservations[].Instances[].PublicIpAddress as \$ip| \$ip" | fzf --height=20 --layout=reverse)
 
 declare -a SSHCOMMAND
 SSHCOMMAND=( "ssh" "-q" )
 SSHCOMMAND+=( "-i" "${AWS_SSH_KEY}" "${AWS_SSH_USERNAME}@${INSTANCE_IP//\"/}" "$@")
-echo "${SSHCOMMAND[@]}"
-eval "${SSHCOMMAND[@]}"
+
+background=${b:=0}
+if [ $background -eq 1 ]; then
+    SSHCOMMAND+=( '&' )
+    eval "${SSHCOMMAND[@]}"
+else 
+    eval "${SSHCOMMAND[@]}"
+fi
+

@@ -31,13 +31,16 @@ elif [ "$COMMAND" = "find-event" ]; then
     AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' )
     START_TIME=0
 
-    while getopts "g:p:t:" options; do
+    while getopts "g:p:t:l:" options; do
         case "${options}" in
             g)
                 AWSCOMMAND+=( '--log-group-name' "${OPTARG}" )
                 ;;
             p)
                 AWSCOMMAND+=( '--filter-pattern' "\"${OPTARG}\"" )
+                ;;
+            l)
+                AWSCOMMAND+=( '--limit' "\"${OPTARG}\"" )
                 ;;
             t)
                 START_TIME="${OPTARG}"
@@ -46,6 +49,8 @@ elif [ "$COMMAND" = "find-event" ]; then
                 ;;
         esac
     done
+    shift "$(($OPTIND-1))"
+    AWSCOMMAND+=( "$@" )
 
     if [ $START_TIME -eq 0 ]; then
         AWSCOMMAND+=( '--start-time' $(php -r "echo strtotime('-1 day') * 1000;") )

@@ -57,14 +57,15 @@ if [ "$COMMAND" = "get-message" ]; then
     while :; do
         AWSCOMMAND=( 'aws' 'kinesis' 'get-records' '--shard-iterator' "${SHARDITERATOR}" )
 
-        OUTPUT=$(eval "${AWSCOMMAND[@]}" || exit)
+        OUTPUT=$(eval "${AWSCOMMAND[@]}")
 
-        echo $OUTPUT | jq '.Records[] | {"data": (.Data|@base64d), "partition_key": .PartitionKey, "timestamp": .ApproximateArrivalTimestamp }'
+        echo $OUTPUT | jq '.Records[] | {"data": (.Data|@base64d|fromjson), "partition_key": .PartitionKey, "timestamp": .ApproximateArrivalTimestamp }'
 
         SHARDITERATOR=$(echo $OUTPUT | jq '.NextShardIterator' | sed 's/"//g')
         if [ -z $SHARDITERATOR ]; then
             break;
         fi
+        sleep 1
     done
     exit
 fi
