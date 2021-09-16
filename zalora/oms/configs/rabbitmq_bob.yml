@@ -1,0 +1,159 @@
+system:
+  host: rabbitmq
+  port: 5672
+  user: guest
+  pass: guest
+  vhost: /id
+  debug: true
+  enabled: true
+deadletter:
+  queue: oms-dead-letter
+  exchange: oms-dead-letter
+  type: topic
+  attempts: 10
+systemcommand:
+  exchange: oms
+  key: oms.*.system.*
+  method: systemCommandReceive
+api:
+  port: 15672
+  user: guest
+  pass: guest
+exchanges:
+  -
+    name: oms
+    type: topic
+  -
+    name: salesorder
+    type: topic
+  -
+    name: product
+    type: topic
+bindings:
+  -
+    queue: ha.oms.order
+    routings:
+      -
+        exchange: oms
+        key: bob.*.exchange.*
+  -
+    queue: ha.bob.<COUNTRY>.salesorder.new
+    routings:
+      -
+        exchange: salesorder
+        key: bob.*.new
+  -
+    queue: ha.oms.catalog
+    routings:
+      -
+        exchange: oms
+        key: bob.*.brand.*
+      -
+        exchange: oms
+        key: bob.*.category.*
+      -
+        exchange: oms
+        key: bob.*.attributeset.*
+      -
+        exchange: oms
+        key: bob.*.attributesetoptions.*
+  -
+    queue: ha.oms.resyncorder
+    routings:
+      -
+        exchange: oms
+        key: bob.*.resyncorder.*
+  -
+    queue: ha.oms.supplier
+    routings:
+      -
+        exchange: oms
+        key: bob.*.supplier.*
+      -
+        exchange: oms
+        key: bob.*.tax.*
+  -
+    queue: ha.oms.region
+    routings:
+      -
+        exchange: oms
+        key: bob.*.region.*
+  -
+    queue: ha.oms.return
+    routings:
+      -
+        exchange: oms
+        key: bob.*.return.*
+  -
+    queue: ha.oms.<COUNTRY>.reportDump.create
+    routings:
+      -
+        exchange: oms
+        key: oms.*.reportDump.create
+consumers:
+  bob_message_consumer_order:
+    client: oms
+    queue: ha.bob.<COUNTRY>.salesorder.new
+    process_type: regular   # this should only be used in bug data imports comsumers, this parameter can be omited
+    routing_mapping:
+      salesOrderPull: bob.*.new
+  bob_message_consumer_order_related:
+    client: oms
+    queue: ha.oms.order
+    process_type: regular # this should only be used in bug data imports comsumers, this parameter can be omited
+    routing_mapping:
+      createReturn: bob.*.return.*
+      exchangeOrderItemCreate: bob.*.exchange.new
+      exchangeOrderItemDelete: bob.*.exchange.delete
+  bob_message_consumer_pops:
+    client: oms
+    queue: ha.oms.catalog
+    process_type: regular
+    routing_mapping:
+      brandPull: bob.*.brand.*
+      categoryPull: bob.*.category.*
+      attributePull: bob.*.attributeset.*
+      attributeOptionsPull: bob.*.attributesetoptions.*
+  bob_message_consumer_resync_order:
+    client: oms
+    queue: ha.oms.resyncorder
+    process_type: regular
+    routing_mapping:
+      salesOrderItemReSync: bob.*.resyncorder.*
+  bob_message_consumer_supplier:
+    client: oms
+    queue: ha.oms.supplier
+    process_type: regular
+    routing_mapping:
+      taxPull: bob.*.tax.*
+      supplierPull: bob.*.supplier.*
+  bob_message_consumer_region:
+    client: oms
+    queue: ha.oms.region
+    process_type: regular
+    routing_mapping:
+      regionPull: bob.*.region.*
+  bob_message_consumer_create_return: #zalora only
+    client: oms
+    queue: ha.oms.return
+    process_type: regular
+    routing_mapping:
+      createReturn: bob.*.return.*
+  oms_message_consumer_report_dump:
+    client: oms
+    queue: ha.oms.<COUNTRY>.reportDump.create
+    process_type: regular
+    routing_mapping:
+      consumeReportDump: oms.*.reportDump.create
+  oms_message_consumer_report_dump1:
+    client: oms
+    queue: ha.oms.<COUNTRY>.reportDump.create
+    process_type: regular
+    routing_mapping:
+      consumeReportDump: oms.*.reportDump.create
+  oms_message_consumer_report_dump2:
+    client: oms
+    queue: ha.oms.<COUNTRY>.reportDump.create
+    process_type: regular
+    routing_mapping:
+      consumeReportDump: oms.*.reportDump.create
