@@ -13,11 +13,12 @@ function listShardId() {
     AWSCOMMAND=( 'aws' 'kinesis' 'describe-stream' )
     AWSCOMMAND+=( '--stream-name' "$STREAMNAME" )
 
-    SHARDIDS=$(eval "${AWSCOMMAND[@]}" | jq '.StreamDescription.Shards[].ShardId' | sed 's/"//g')
+    SHARDIDS=$(eval "${AWSCOMMAND[@]}" | jq '.StreamDescription.Shards[].ShardId')
     if [ $(wc -l <<< "${SHARDIDS}") -eq 1 ]; then
-        echo $SHARDIDS
+        echo ${SHARDIDS//\"/}
     else
-        echo $(fzf <<< $SHARDIDS)
+        SELECTEDSHARDID=$(printf "%s\n" "${SHARDIDS[@]}" | fzf) 
+        echo ${SELECTEDSHARDID//\"/}
     fi
 }
 
