@@ -55,7 +55,7 @@ if [ "$COMMAND" = "get-message" ]; then
     SHARDITERATOR=$(getShardIterator "$STREAMNAME" "$@")
     declare -a AWSCOMMAND
     while :; do
-        AWSCOMMAND=( 'aws' 'kinesis' 'get-records' '--shard-iterator' "${SHARDITERATOR}" )
+        AWSCOMMAND=( 'aws' 'kinesis' 'get-records' '--shard-iterator' "${SHARDITERATOR}" "--limit 100")
 
         OUTPUT=$(eval "${AWSCOMMAND[@]}")
 
@@ -65,9 +65,12 @@ if [ "$COMMAND" = "get-message" ]; then
         if [ -z $SHARDITERATOR ]; then
             break;
         fi
-        sleep 1
+        sleep 3
     done
     exit
+elif [ "$COMMAND" = "list-streams" ]; then
+    aws kinesis list-streams | jq ".StreamNames[]" | sed s/\"//g | fzf
+    exit
+else 
+    aws kinesis $@
 fi
-
-aws kinesis $@

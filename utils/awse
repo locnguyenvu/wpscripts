@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+command=$1
+shift
+function get-ip() {
+    instance_name=$1
+    declare -a AWSCOMMAND
+    AWSCOMMAND=( "aws" "ec2" "describe-instances" )
+    AWSCOMMAND+=( "--filter" "Name=tag:Name,Values=${instance_name}" )
+    instance_ip=$( eval "${AWSCOMMAND[@]}" | jq '.Reservations[].Instances[].PublicIpAddress as $ip | $ip' | fzf --height=20 --layout=reverse)
+    echo ${instance_ip//\"/}
+}
+
+if [ -n "$(LC_ALL=C type -t ${command})" ] && [ "$(LC_ALL=C type -t ${command})" = function ]; then 
+    eval "${command} $@"
+else 
+    echo Command not support
+fi
