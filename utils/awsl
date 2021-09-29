@@ -28,7 +28,7 @@ if [ "$COMMAND" = "ls-group" ]; then
 elif [ "$COMMAND" = "find-event" ]; then
     shift
     declare -a AWSCOMMAND
-    AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' )
+    AWSCOMMAND=( 'aws' 'logs' 'filter-log-events' '--interleaved' )
     START_TIME=0
 
     while getopts "g:p:t:l:" options; do
