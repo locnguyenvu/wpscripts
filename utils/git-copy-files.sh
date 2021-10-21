@@ -18,7 +18,7 @@ SOURCE_BRANCH=$2
 TARGET_BRANCH=$3
 
 git checkout $SOURCE_BRANCH
-git pull origin $SOURCE_BRANCH
+#git pull origin $SOURCE_BRANCH
 
 TMP_DIR="/tmp/gcf-$SOURCE_BRANCH"
 mkdir -p $TMP_DIR
@@ -32,7 +32,7 @@ done
 
 # Copy files
 git checkout $TARGET_BRANCH
-git pull origin $TARGET_BRANCH
+#git pull origin $TARGET_BRANCH
 echo $'\nCopy files'
 for FILE in $CHANGE_FILES
 do

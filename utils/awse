@@ -6,7 +6,8 @@ function get-ip() {
     instance_name=$1
     declare -a AWSCOMMAND
     AWSCOMMAND=( "aws" "ec2" "describe-instances" )
-    AWSCOMMAND+=( "--filter" "Name=tag:Name,Values=${instance_name}" )
+    AWSCOMMAND+=( "--filters" "Name=instance-state-name,Values=running" )
+    AWSCOMMAND+=( "--filters" "Name=tag:Name,Values=${instance_name}" )
     instance_ip=$( eval "${AWSCOMMAND[@]}" | jq '.Reservations[].Instances[].PublicIpAddress as $ip | $ip' | fzf --height=20 --layout=reverse)
     echo ${instance_ip//\"/}
 }

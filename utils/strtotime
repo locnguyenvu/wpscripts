@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+$cliArgument = array_slice($argv, 1);
+
+$options = [];
+$timeString = array_pop($cliArgument);
+foreach ($cliArgument as $arg) {
+    if (preg_match('/^\-[a-z]/', $arg)) {
+        $options[] = preg_replace('/^\-/', '', $arg);
+    }
+}
+try {
+    $time = strtotime($timeString);
+    if (in_array('m', $options)) {
+        $time = $time*1000;
+    }
+    echo $time;
+} catch (\Exception $e) {
+    exit(2);
+}
